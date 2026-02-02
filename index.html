@@ -365,18 +365,22 @@
             justify-content: center;
             align-items: center;
             animation: fadeIn 0.3s ease-in;
+            padding: 20px;
+            box-sizing: border-box;
         }
         
         .popup-overlay.show {
-            display: flex;
+            display: flex !important;
         }
         
         .popup-content {
             background: linear-gradient(135deg, #d9c1a9, #c5ae96);
             border-radius: 20px;
-            padding: 40px;
+            padding: 30px 20px;
             max-width: 500px;
-            width: 90%;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
             text-align: center;
             box-shadow: 0 10px 50px rgba(0,0,0,0.5);
             border: 3px solid #334024;
@@ -385,7 +389,8 @@
         }
         
         .popup-image {
-            width: 200px;
+            width: 90%;
+            max-width: 200px;
             height: auto;
             max-height: 300px;
             margin: 0 auto 20px;
@@ -433,6 +438,12 @@
             font-weight: bold;
             transition: all 0.3s ease;
             box-shadow: 0 4px 15px rgba(51, 64, 36, 0.3);
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        
+        .popup-close-btn:active {
+            transform: scale(0.95);
         }
         
         .popup-close-btn:hover {
@@ -466,7 +477,7 @@
             <div class="popup-image-fallback" id="popupImageFallback">✅</div>
             
             <div class="popup-message">
-                 🎉 Vui lòng thanh toán trước và chụp màn hình lại gửi qua IG: ridebookcut để confirm – Cái giá phải trả: 150.000vnd – Thank youuu! 🎉
+                🎉 Thank You for Booking with Ride Bookcut! 🎉
             </div>
             
             <div class="popup-details">
@@ -643,6 +654,7 @@
         
         // POPUP FUNCTIONS
         function showPopup(date, time, service) {
+            console.log('🎉 Showing popup...'); // Debug log
             const popup = document.getElementById('bookingPopup');
             const dateObj = new Date(date + 'T00:00:00');
             const formattedDate = dateObj.toLocaleDateString('en-US', {
@@ -659,13 +671,18 @@
             // Try to load image for popup
             loadPopupImage();
             
+            // Force display
+            popup.style.display = 'flex';
             popup.classList.add('show');
             document.body.style.overflow = 'hidden';
+            console.log('✅ Popup shown!'); // Debug log
         }
         
         function closePopup() {
+            console.log('❌ Closing popup...'); // Debug log
             const popup = document.getElementById('bookingPopup');
             popup.classList.remove('show');
+            popup.style.display = 'none';
             document.body.style.overflow = 'auto';
         }
         
@@ -996,17 +1013,19 @@
         
         // Submit booking - WITH POPUP
         function submitBooking() {
+            console.log('📝 Submitting booking...'); // Debug log
             const name = document.getElementById('customerName').value.trim();
             const phone = document.getElementById('customerPhone').value.trim();
             const service = document.getElementById('serviceRequest').value.trim();
             
             if (!name || !phone || !service || !selectedTime) {
-                showNotification('customerNotification', '⚠️ Please fill in all fields and select a time slot.', 'error');
+                alert('⚠️ Please fill in all fields and select a time slot.');
+                console.log('❌ Form incomplete'); // Debug log
                 return;
             }
             
             if (daysOffData.includes(selectedDate)) {
-                showNotification('customerNotification', '🚫 Sorry, this date is marked as day off. Please select another date.', 'error');
+                alert('🚫 Sorry, this date is marked as day off. Please select another date.');
                 return;
             }
             
@@ -1021,22 +1040,3256 @@
                 timestamp: new Date().toISOString()
             };
             
+            console.log('💾 Saving booking:', booking); // Debug log
+            
             if (!bookingsData[selectedDate]) bookingsData[selectedDate] = {};
             bookingsData[selectedDate][selectedTime] = booking;
             
-            saveToStorage();
-            
-            // Clear form
-            document.getElementById('customerName').value = '';
-            document.getElementById('customerPhone').value = '';
-            document.getElementById('serviceRequest').value = '';
+            // Save to storage
+            saveToStorage().then(() => {
+                console.log('✅ Booking saved!'); // Debug log
+                
+                // Clear form
+                document.getElementById('customerName').value = '';
+                document.getElementById('customerPhone').value = '';
+                document.getElementById('serviceRequest').value = '';
+                document.getElementById('bookingForm').classList.add('hidden');
+                
+                // Refresh display
+                loadTimeSlots();
+                
+                // SHOW POPUP
+                setTimeout(() => {
+                    showPopup(selectedDate, selectedTime, service);
+                }, 100);
+            }).catch(error => {
+                console.error('❌ Save error:', error);
+                alert('Error saving booking. Please try again.');
+            });
+        }
+        
+        // Cancel booking (customer)
+        function cancelCustomerBooking() {
             document.getElementById('bookingForm').classList.add('hidden');
-            
-            // Refresh display
+            document.querySelectorAll('.time-slot').forEach(slot => slot.classList.remove('selected'));
+            selectedTime = '';
+        }
+        
+        // Show customer view
+        function showCustomerView() {
+            document.getElementById('customerView').classList.remove('hidden');
+            document.getElementById('adminView').classList.add('hidden');
+            document.getElementById('customerBtn').classList.add('active');
+            document.getElementById('adminBtn').classList.remove('active');
             loadTimeSlots();
+        }
+        
+        // Show admin view
+        function showAdminView() {
+            document.getElementById('customerView').classList.add('hidden');
+            document.getElementById('adminView').classList.remove('hidden');
+            document.getElementById('customerBtn').classList.remove('active');
+            document.getElementById('adminBtn').classList.add('active');
             
-            // SHOW POPUP INSTEAD OF NOTIFICATION
-            showPopup(selectedDate, selectedTime, service);
+            if (isAdminLoggedIn) {
+                document.getElementById('adminLogin').classList.add('hidden');
+                document.getElementById('adminPanel').classList.remove('hidden');
+                loadAdminBookings();
+                loadDayOffList();
+            } else {
+                document.getElementById('adminLogin').classList.remove('hidden');
+                document.getElementById('adminPanel').classList.add('hidden');
+            }
+        }
+        
+        // Admin login
+        function adminLogin() {
+            const password = document.getElementById('adminPassword').value;
+            
+            if (password === 'ridebookcut123') {
+                isAdminLoggedIn = true;
+                document.getElementById('adminLogin').classList.add('hidden');
+                document.getElementById('adminPanel').classList.remove('hidden');
+                document.getElementById('adminPassword').value = '';
+                
+                loadAdminBookings();
+                loadDayOffList();
+                updateDisplay();
+                showNotification('adminPanelNotification', '✅ Login successful!', 'success');
+            } else {
+                showNotification('adminNotification', '❌ Incorrect password.', 'error');
+                document.getElementById('adminPassword').value = '';
+            }
+        }
+        
+        // Load admin bookings
+        function loadAdminBookings() {
+            const allBookings = [];
+            
+            Object.keys(bookingsData).forEach(date => {
+                if (bookingsData[date]) {
+                    Object.keys(bookingsData[date]).forEach(time => {
+                        if (bookingsData[date][time]) {
+                            allBookings.push(bookingsData[date][time]);
+                        }
+                    });
+                }
+            });
+            
+            const pendingBookings = allBookings.filter(b => b.status === 'pending');
+            const confirmedBookings = allBookings.filter(b => b.status === 'confirmed');
+            const cancelledBookings = allBookings.filter(b => b.status === 'cancelled' || b.status === 'declined');
+            
+            updateBookingStats(pendingBookings.length, confirmedBookings.length, cancelledBookings.length);
+            updateDateNavigation(allBookings);
+            
+            pendingBookings.sort((a, b) => new Date(a.date + ' ' + a.time) - new Date(b.date + ' ' + b.time));
+            
+            const pendingContainer = document.getElementById('pendingBookings');
+            if (pendingContainer) {
+                if (pendingBookings.length === 0) {
+                    pendingContainer.innerHTML = '<p>No pending bookings.</p>';
+                } else {
+                    const pendingByDate = {};
+                    pendingBookings.forEach(booking => {
+                        if (!pendingByDate[booking.date]) {
+                            pendingByDate[booking.date] = [];
+                        }
+                        pendingByDate[booking.date].push(booking);
+                    });
+                    
+                    let pendingHTML = '';
+                    Object.keys(pendingByDate).forEach(date => {
+                        const dateObj = new Date(date + 'T00:00:00');
+                        const formattedDate = dateObj.toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        });
+                        
+                        const today = new Date().toISOString().split('T')[0];
+                        const isToday = date === today;
+                        
+                        pendingHTML += `
+                            <div class="date-group${isToday ? '' : ' collapsed'}" id="pending-date-${date}">
+                                <h4 onclick="toggleDateGroup('pending-date-${date}')"${isToday ? '' : ' class="collapsed"'}>
+                                    ${formattedDate} 
+                                    <span style="float: right; font-size: 0.8em; background: #f39c12; padding: 2px 8px; border-radius: 10px; color: white;">
+                                        ${pendingByDate[date].length} pending
+                                    </span>
+                                </h4>
+                                <div class="bookings-content"${isToday ? '' : ' style="display: none;"'}>
+                        `;
+                        
+                        pendingByDate[date].forEach(booking => {
+                            pendingHTML += `
+                                <div class="booking-item">
+                                    <div>
+                                        <strong>${booking.customerName}</strong><br>
+                                        🕐 ${booking.time}<br>
+                                        📞 ${booking.customerPhone}<br>
+                                        ✂️ ${booking.serviceRequest}
+                                    </div>
+                                    <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                                        <button class="btn confirm" onclick="confirmBooking('${booking.id}')">✅ Confirm</button>
+                                        <button class="btn decline" onclick="declineBooking('${booking.id}')">❌ Decline</button>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        pendingHTML += `
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    pendingContainer.innerHTML = pendingHTML;
+                }
+            }
+            
+            allBookings.sort((a, b) => {
+                const dateComparison = new Date(b.date) - new Date(a.date);
+                if (dateComparison !== 0) {
+                    return dateComparison;
+                }
+                return new Date('1970/01/01 ' + a.time) - new Date('1970/01/01 ' + b.time);
+            });
+            
+            const allContainer = document.getElementById('allBookings');
+            if (allContainer) {
+                if (allBookings.length === 0) {
+                    allContainer.innerHTML = '<p>No bookings yet.</p>';
+                } else {
+                    const allByDate = {};
+                    allBookings.forEach(booking => {
+                        if (!allByDate[booking.date]) {
+                            allByDate[booking.date] = [];
+                        }
+                        allByDate[booking.date].push(booking);
+                    });
+                    
+                    let allHTML = '';
+                    Object.keys(allByDate).sort((a, b) => new Date(b) - new Date(a)).forEach(date => {
+                        const dateObj = new Date(date + 'T00:00:00');
+                        const formattedDate = dateObj.toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        });
+                        
+                        const today = new Date().toISOString().split('T')[0];
+                        const isToday = date === today;
+                        
+                        const dateBookings = allByDate[date];
+                        const datePending = dateBookings.filter(b => b.status === 'pending').length;
+                        const dateConfirmed = dateBookings.filter(b => b.status === 'confirmed').length;
+                        const dateCancelled = dateBookings.filter(b => b.status === 'cancelled' || b.status === 'declined').length;
+                        
+                        allHTML += `
+                            <div class="date-group${isToday ? '' : ' collapsed'}" id="all-date-${date}">
+                                <h4 onclick="toggleDateGroup('all-date-${date}')"${isToday ? '' : ' class="collapsed"'}>
+                                    ${formattedDate}
+                                    <span style="float: right; font-size: 0.8em;">
+                                        ${datePending > 0 ? `<span style="background: #f39c12; padding: 2px 8px; border-radius: 10px; color: white; margin-right: 5px;">${datePending} pending</span>` : ''}
+                                        ${dateConfirmed > 0 ? `<span style="background: #27ae60; padding: 2px 8px; border-radius: 10px; color: white; margin-right: 5px;">${dateConfirmed} confirmed</span>` : ''}
+                                        ${dateCancelled > 0 ? `<span style="background: #e74c3c; padding: 2px 8px; border-radius: 10px; color: white;">${dateCancelled} cancelled</span>` : ''}
+                                    </span>
+                                </h4>
+                                <div class="bookings-content"${isToday ? '' : ' style="display: none;"'}>
+                        `;
+                        
+                        allByDate[date].forEach(booking => {
+                            let statusClass = '';
+                            if (booking.status === 'pending') statusClass = 'background: #fef9e7; border-left: 4px solid #f39c12;';
+                            else if (booking.status === 'confirmed') statusClass = 'background: #e8f8f1; border-left: 4px solid #27ae60;';
+                            else statusClass = 'background: #fadbd8; border-left: 4px solid #e74c3c;';
+                            
+                            allHTML += `
+                                <div class="booking-item" style="${statusClass}">
+                                    <div>
+                                        <strong>${booking.customerName}</strong><br>
+                                        🕐 ${booking.time}<br>
+                                        📞 ${booking.customerPhone}<br>
+                                        ✂️ ${booking.serviceRequest}<br>
+                                        <strong>Status: ${booking.status.toUpperCase()}</strong>
+                                    </div>
+                                    <div style="margin-top: 10px; display: flex; gap: 10px;">
+                                        ${booking.status === 'pending' ? 
+                                            `<button class="btn confirm" onclick="confirmBooking('${booking.id}')">✅ Confirm</button>
+                                             <button class="btn decline" onclick="declineBooking('${booking.id}')" style="background: #e74c3c;">❌ Decline</button>` : 
+                                            ''}
+                                        ${booking.status === 'confirmed' ? 
+                                            `<button class="btn decline" onclick="cancelConfirmedBooking('${booking.id}')" style="background: #e74c3c;">❌ Cancel Booking</button>` : 
+                                            ''}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        allHTML += `
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    allContainer.innerHTML = allHTML;
+                }
+            }
+            
+            const today = new Date().toISOString().split('T')[0];
+            setTimeout(() => {
+                const todayElement = document.getElementById(`all-date-${today}`);
+                if (todayElement) {
+                    todayElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 500);
+        }
+        
+        function updateBookingStats(pendingCount, confirmedCount, cancelledCount) {
+            const statsContainer = document.getElementById('bookingStats');
+            if (statsContainer) {
+                statsContainer.innerHTML = `
+                    <div class="stat-card pending">
+                        <div>PENDING</div>
+                        <div class="stat-value">${pendingCount}</div>
+                        <div>Bookings</div>
+                    </div>
+                    <div class="stat-card confirmed">
+                        <div>CONFIRMED</div>
+                        <div class="stat-value">${confirmedCount}</div>
+                        <div>Bookings</div>
+                    </div>
+                    <div class="stat-card cancelled">
+                        <div>CANCELLED</div>
+                        <div class="stat-value">${cancelledCount}</div>
+                        <div>Bookings</div>
+                    </div>
+                `;
+            }
+        }
+        
+        function updateDateNavigation(allBookings) {
+            const navContainer = document.getElementById('dateNavigation');
+            if (navContainer) {
+                const dates = [...new Set(allBookings.map(b => b.date))].sort();
+                
+                if (dates.length === 0) {
+                    navContainer.innerHTML = '<p>No bookings to navigate to.</p>';
+                    return;
+                }
+                
+                let navHTML = '';
+                dates.forEach(date => {
+                    const dateObj = new Date(date + 'T00:00:00');
+                    const formattedDate = dateObj.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric'
+                    });
+                    
+                    navHTML += `
+                        <div class="date-nav-item" onclick="scrollToDate('${date}')">
+                            ${formattedDate}
+                        </div>
+                    `;
+                });
+                
+                navContainer.innerHTML = navHTML;
+            }
+        }
+        
+        function scrollToDate(date) {
+            const element = document.getElementById(`all-date-${date}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                element.style.border = '2px solid #3498db';
+                setTimeout(() => {
+                    element.style.border = 'none';
+                }, 2000);
+            }
+        }
+        
+        function toggleDateGroup(groupId) {
+            const group = document.getElementById(groupId);
+            if (!group) return;
+            
+            const header = group.querySelector('h4');
+            const content = group.querySelector('.bookings-content');
+            
+            if (!header || !content) return;
+            
+            header.classList.toggle('collapsed');
+            group.classList.toggle('collapsed');
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+            } else {
+                content.style.display = 'none';
+            }
+        }
+        
+        function confirmBooking(bookingId) {
+            updateBookingStatus(bookingId, 'confirmed');
+        }
+        
+        function declineBooking(bookingId) {
+            updateBookingStatus(bookingId, 'declined');
+        }
+        
+        function cancelConfirmedBooking(bookingId) {
+            if (confirm('⚠️ Are you sure you want to cancel this confirmed booking? This cannot be undone!')) {
+                updateBookingStatus(bookingId, 'cancelled');
+            }
+        }
+        
+        function updateBookingStatus(bookingId, newStatus) {
+            Object.keys(bookingsData).forEach(date => {
+                if (bookingsData[date]) {
+                    Object.keys(bookingsData[date]).forEach(time => {
+                        if (bookingsData[date][time] && bookingsData[date][time].id === bookingId) {
+                            if (newStatus === 'declined' || newStatus === 'cancelled') {
+                                delete bookingsData[date][time];
+                            } else {
+                                bookingsData[date][time].status = newStatus;
+                            }
+                            
+                            saveToStorage();
+                            loadAdminBookings();
+                            loadTimeSlots();
+                            
+                            showNotification('adminPanelNotification', 
+                                `✅ Booking ${newStatus === 'confirmed' ? 'confirmed' : newStatus === 'cancelled' ? 'cancelled' : 'declined'}!`, 
+                                'success');
+                            return;
+                        }
+                    });
+                }
+            });
+        }
+        
+        function toggleDayOff() {
+            const dateInput = document.getElementById('dayOffDate');
+            const selectedDayOff = dateInput.value;
+            
+            if (!selectedDayOff) {
+                showNotification('dayOffNotification', '⚠️ Please select a date first.', 'error');
+                return;
+            }
+            
+            const dateIndex = daysOffData.indexOf(selectedDayOff);
+            
+            if (dateIndex === -1) {
+                daysOffData.push(selectedDayOff);
+                
+                if (bookingsData[selectedDayOff]) {
+                    delete bookingsData[selectedDayOff];
+                }
+                
+                saveToStorage();
+                showNotification('dayOffNotification', '🚫 Day marked as OFF! No bookings will be accepted.', 'success');
+            } else {
+                daysOffData.splice(dateIndex, 1);
+                saveToStorage();
+                showNotification('dayOffNotification', '✅ Day off removed! Bookings are now available.', 'success');
+            }
+            
+            dateInput.value = '';
+            loadDayOffList();
+            loadTimeSlots();
+        }
+        
+        function loadDayOffList() {
+            const container = document.getElementById('dayOffList');
+            if (!container) return;
+            
+            if (daysOffData.length === 0) {
+                container.innerHTML = '<p style="color: #666; font-style: italic;">No days off scheduled.</p>';
+                return;
+            }
+            
+            const sortedDates = [...daysOffData].sort();
+            
+            container.innerHTML = '<h4>Scheduled Days Off:</h4>' + 
+                sortedDates.map(date => {
+                    const dateObj = new Date(date + 'T00:00:00');
+                    const formattedDate = dateObj.toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+                    
+                    return `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; margin: 5px 0; background: #f8f9fa; border-radius: 5px; border-left: 4px solid #e74c3c;">
+                            <span>🚫 ${formattedDate}</span>
+                            <button class="btn" style="padding: 5px 10px; font-size: 12px; background: #dc3545;" onclick="removeDayOff('${date}')">Remove</button>
+                        </div>
+                    `;
+                }).join('');
+        }
+        
+        function removeDayOff(date) {
+            const index = daysOffData.indexOf(date);
+            if (index > -1) {
+                daysOffData.splice(index, 1);
+                saveToStorage();
+                showNotification('dayOffNotification', '✅ Day off removed!', 'success');
+                loadDayOffList();
+                loadTimeSlots();
+            }
+        }
+        
+        function testConnection() {
+            if (firebaseInitialized) {
+                showNotification('sheetsNotification', '✅ Firebase connection successful! Real-time sync enabled.', 'success');
+            } else {
+                showNotification('sheetsNotification', '⚠️ Firebase not configured. Using localStorage instead.', 'info');
+            }
+        }
+        
+        function manualSync() {
+            loadFromStorage();
+            loadTimeSlots();
+            if (isAdminLoggedIn) {
+                loadAdminBookings();
+                loadDayOffList();
+            }
+            updateDisplay();
+            showNotification('sheetsNotification', '✅ Manual sync completed!', 'success');
+        }
+        
+        function clearLocalData() {
+            if (confirm('⚠️ Are you sure you want to clear ALL booking data? This cannot be undone!')) {
+                bookingsData = {};
+                daysOffData = [];
+                
+                if (firebaseInitialized) {
+                    db.collection('bookings').get().then(snapshot => {
+                        const batch = db.batch();
+                        snapshot.forEach(doc => {
+                            batch.delete(doc.ref);
+                        });
+                        return batch.commit();
+                    }).then(() => {
+                        return db.collection('daysOff').get();
+                    }).then(snapshot => {
+                        const batch = db.batch();
+                        snapshot.forEach(doc => {
+                            batch.delete(doc.ref);
+                        });
+                        return batch.commit();
+                    }).then(() => {
+                        showNotification('sheetsNotification', '✅ All Firebase data cleared successfully!', 'success');
+                    }).catch(error => {
+                        console.error('Error clearing Firebase data:', error);
+                        showNotification('sheetsNotification', '❌ Error clearing Firebase data.', 'error');
+                    });
+                } else {
+                    localStorage.removeItem(STORAGE_KEY);
+                    localStorage.removeItem(STORAGE_KEY + '_daysoff');
+                    showNotification('sheetsNotification', '✅ Local data cleared successfully!', 'success');
+                }
+                
+                loadTimeSlots();
+                if (isAdminLoggedIn) {
+                    loadAdminBookings();
+                    loadDayOffList();
+                }
+                updateDisplay();
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const pendingSearch = document.getElementById('pendingSearch');
+            const allBookingsSearch = document.getElementById('allBookingsSearch');
+            
+            if (pendingSearch) {
+                pendingSearch.addEventListener('input', function() {
+                    filterBookings('pendingBookings', this.value.toLowerCase());
+                });
+            }
+            
+            if (allBookingsSearch) {
+                allBookingsSearch.addEventListener('input', function() {
+                    filterBookings('allBookings', this.value.toLowerCase());
+                });
+            }
+        });
+        
+        function filterBookings(containerId, searchTerm) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            const bookingItems = container.querySelectorAll('.booking-item');
+            bookingItems.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            
+            const dateGroups = container.querySelectorAll('.date-group');
+            dateGroups.forEach(group => {
+                const visibleItems = group.querySelectorAll('.booking-item:not([style*="display: none"])');
+                const header = group.querySelector('h4');
+                
+                if (visibleItems.length === 0) {
+                    group.style.display = 'none';
+                } else {
+                    group.style.display = 'block';
+                    if (searchTerm) {
+                        group.classList.remove('collapsed');
+                        if (header) header.classList.remove('collapsed');
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ride Bookcut - Barbershop Booking</title>
+    
+    <!-- Open Graph / Social Media Meta Tags -->
+    <meta property="og:title" content="Ride Bookcut - Barbershop Booking">
+    <meta property="og:description" content="Book your barbershop appointment online with Ride Bookcut.">
+    <meta property="og:image" content="https://ridebookcut.github.io/booking-system/logo.jpg.jpg">
+    <meta property="og:url" content="https://ridebookcut.github.io/booking-system/">
+    <meta property="og:type" content="website">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #334024 0%, #2a3520 50%, #1f2718 100%);
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            background: linear-gradient(135deg, #334024, #2a3520);
+            color: #d9c1a9;
+            padding: 40px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            border: 2px solid #d9c1a9;
+        }
+        
+        .logo {
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100px;
+        }
+        
+        .logo img {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #d9c1a9;
+            box-shadow: 0 4px 15px rgba(217, 193, 169, 0.4);
+            display: block;
+        }
+        
+        .logo-fallback {
+            font-size: 4em;
+            display: none;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.8em;
+            font-weight: bold;
+            color: #d9c1a9;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+        }
+        
+        .mode-selector {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .mode-btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #d9c1a9, #c5ae96);
+            color: #334024;
+            border: 2px solid #334024;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(217, 193, 169, 0.3);
+        }
+        
+        .mode-btn.active {
+            background: linear-gradient(135deg, #334024, #2a3520);
+            color: #d9c1a9;
+            border: 2px solid #d9c1a9;
+        }
+        
+        .section {
+            background: rgba(217, 193, 169, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+            border: 2px solid #334024;
+        }
+        
+        .section h3 {
+            margin-top: 0;
+            color: #334024;
+            border-bottom: 3px solid #334024;
+            padding-bottom: 12px;
+            font-size: 1.4em;
+            font-weight: bold;
+        }
+        
+        .time-slots {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .time-slot {
+            padding: 15px 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+            font-weight: bold;
+        }
+        
+        .time-slot.available {
+            border-color: #334024;
+            background-color: rgba(217, 193, 169, 0.3);
+            color: #334024;
+            cursor: pointer;
+        }
+        
+        .time-slot.available:hover {
+            background-color: #334024;
+            color: #d9c1a9;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(51, 64, 36, 0.4);
+        }
+        
+        .time-slot.pending {
+            border-color: #f39c12;
+            background-color: #fef9e7;
+            cursor: not-allowed;
+        }
+        
+        .time-slot.confirmed {
+            border-color: #27ae60;
+            background-color: #e8f8f1;
+            cursor: not-allowed;
+        }
+        
+        .time-slot.selected {
+            background-color: #334024;
+            color: #d9c1a9;
+            border-color: #334024;
+            box-shadow: 0 4px 15px rgba(51, 64, 36, 0.4);
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #334024;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        .btn {
+            padding: 12px 25px;
+            background: linear-gradient(135deg, #334024, #2a3520);
+            color: #d9c1a9;
+            border: 2px solid #d9c1a9;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(51, 64, 36, 0.3);
+        }
+        
+        .btn:hover {
+            background: linear-gradient(135deg, #d9c1a9, #c5ae96);
+            color: #334024;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(217, 193, 169, 0.4);
+        }
+        
+        .btn.confirm {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            border-color: #27ae60;
+            color: white;
+        }
+        
+        .btn.decline {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            border-color: #e74c3c;
+            color: white;
+        }
+        
+        .booking-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+        }
+        
+        .booking-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .stat-card.pending {
+            border-top: 4px solid #f39c12;
+        }
+        
+        .stat-card.confirmed {
+            border-top: 4px solid #27ae60;
+        }
+        
+        .stat-card.cancelled {
+            border-top: 4px solid #e74c3c;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .date-navigation {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .date-nav-item {
+            padding: 8px 15px;
+            background: #334024;
+            color: #d9c1a9;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .date-nav-item:hover {
+            background: #2a3520;
+            transform: translateY(-2px);
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .notification {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        .notification.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
+        }
+        
+        .notification.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 2px solid #f5c6cb;
+        }
+        
+        .notification.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 2px solid #bee5eb;
+        }
+        
+        .date-group {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .date-group h4 {
+            background-color: #334024;
+            color: #d9c1a9;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .date-group h4:hover {
+            background-color: #2a3520;
+        }
+        
+        .date-group h4::before {
+            content: "Click to expand/collapse ▼";
+            float: right;
+            font-size: 0.7em;
+            opacity: 0.7;
+            margin-top: 3px;
+        }
+        
+        .date-group h4.collapsed::before {
+            content: "Click to expand/collapse ▲";
+        }
+        
+        .date-group.collapsed .bookings-content {
+            display: none;
+        }
+        
+        .bookings-content {
+            margin-left: 10px;
+        }
+        
+        /* POPUP MODAL STYLES */
+        .popup-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s ease-in;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        .popup-overlay.show {
+            display: flex !important;
+        }
+        
+        .popup-content {
+            background: linear-gradient(135deg, #d9c1a9, #c5ae96);
+            border-radius: 20px;
+            padding: 30px 20px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            text-align: center;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.5);
+            border: 3px solid #334024;
+            animation: slideIn 0.5s ease-out;
+            position: relative;
+        }
+        
+        .popup-image {
+            width: 90%;
+            max-width: 200px;
+            height: auto;
+            max-height: 300px;
+            margin: 0 auto 20px;
+            object-fit: contain;
+            border: 4px solid #334024;
+            box-shadow: 0 4px 20px rgba(51, 64, 36, 0.3);
+            border-radius: 10px;
+        }
+        
+        .popup-image-fallback {
+            font-size: 100px;
+            margin-bottom: 20px;
+        }
+        
+        .popup-message {
+            font-size: 0.9em;
+            font-weight: bold;
+            color: #FF0000;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        
+        .popup-details {
+            background: rgba(255, 255, 255, 0.6);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        .popup-details p {
+            margin: 8px 0;
+            color: #334024;
+            font-weight: 600;
+        }
+        
+        .popup-close-btn {
+            padding: 15px 40px;
+            background: linear-gradient(135deg, #334024, #2a3520);
+            color: #d9c1a9;
+            border: 2px solid #334024;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(51, 64, 36, 0.3);
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        
+        .popup-close-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .popup-close-btn:hover {
+            background: linear-gradient(135deg, #2a3520, #1f2718);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(51, 64, 36, 0.5);
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px) scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <!-- POPUP MODAL -->
+    <div id="bookingPopup" class="popup-overlay" onclick="if(event.target === this) closePopup()">
+        <div class="popup-content">
+            <img id="popupImage" class="popup-image" src="payment-qr.jpg" alt="Payment QR" style="display: none;">
+            <div class="popup-image-fallback" id="popupImageFallback">✅</div>
+            
+            <div class="popup-message">
+                🎉 Vui lòng thanh toán trước và chụp màn hình lại gửi qua IG: ridebookcut để confirm – Cái giá phải trả: 150.000vnd – Thank youuu 🎉
+            </div>
+            
+            <div class="popup-details">
+                <p><strong>📅 Date:</strong> <span id="popupDate"></span></p>
+                <p><strong>🕐 Time:</strong> <span id="popupTime"></span></p>
+                <p><strong>✂️ Service:</strong> <span id="popupService"></span></p>
+            </div>
+            
+            <p style="color: #334024; margin-bottom: 20px; font-size: 0.8em;">
+                Your booking is <strong style="color: #f39c12;">PENDING</strong>.<br>
+                We'll confirm your appointment soon!
+            </p> confirm your appointment soon!
+            </p>
+            
+            <button class="popup-close-btn" onclick="closePopup()">Got It!</button>
+        </div>
+    </div>
+
+    <div class="header">
+        <div class="logo">
+            <img id="logoImage" src="logo.jpg.jpg" onerror="this.style.display='none'; document.getElementById('logoFallback').style.display='block';" alt="Ride Bookcut Logo">
+            <div class="logo-fallback" id="logoFallback">✂️</div>
+        </div>
+        <h1>Ride Bookcut</h1>
+        <p>Book or Cook</p>
+    </div>
+
+    <div class="mode-selector">
+        <button class="mode-btn active" id="customerBtn" onclick="showCustomerView()">Customer View</button>
+        <button class="mode-btn" id="adminBtn" onclick="showAdminView()">Owner Panel</button>
+    </div>
+
+    <!-- Customer View -->
+    <div id="customerView">
+        <div class="section">
+            <h3>Book Your Appointment</h3>
+            <div id="customerNotification"></div>
+            <div class="form-group">
+                <label for="selectedDate">Select Date:</label>
+                <input type="date" id="selectedDate" onchange="loadTimeSlots()">
+            </div>
+            
+            <div id="timeSlots" class="time-slots"></div>
+            
+            <div id="bookingForm" class="hidden">
+                <h3>Booking Details</h3>
+                <div class="form-group">
+                    <label for="customerName">Your Name:</label>
+                    <input type="text" id="customerName" required>
+                </div>
+                <div class="form-group">
+                    <label for="customerPhone">Phone Number:</label>
+                    <input type="tel" id="customerPhone" required>
+                </div>
+                <div class="form-group">
+                    <label for="serviceRequest">Service Requested:</label>
+                    <input type="text" id="serviceRequest" placeholder="e.g., Haircut, Beard trim" required>
+                </div>
+                <button class="btn" onclick="submitBooking()">Submit Booking Request</button>
+                <button class="btn" onclick="cancelCustomerBooking()" style="margin-left: 10px; background: #ccc; color: #333;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin View -->
+    <div id="adminView" class="hidden">
+        <div class="section" id="adminLogin">
+            <h3>Owner Login</h3>
+            <div id="adminNotification"></div>
+            <div class="form-group">
+                <label for="adminPassword">Password:</label>
+                <input type="password" id="adminPassword" placeholder="Enter admin password">
+            </div>
+            <button class="btn" onclick="adminLogin()">Login</button>
+        </div>
+        
+        <div id="adminPanel" class="hidden">
+            <div class="section">
+                <h3>Booking Dashboard</h3>
+                <div id="bookingStats" class="booking-stats"></div>
+                <div id="sheetsNotification"></div>
+                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #ffc107;">
+                    <h4 style="margin: 0 0 10px 0; color: #856404;">🚀 Firebase Cross-Device Sync Ready</h4>
+                    <p style="margin: 0; font-size: 14px; color: #856404;">
+                        <strong>Current Status:</strong> <span id="firebaseStatus">Connecting...</span><br>
+                        <strong>For Real Cross-Device Sync:</strong> Configure Firebase in the &lt;head&gt; section
+                    </p>
+                </div>
+                <button class="btn" onclick="testConnection()" style="background: #2ecc71;">Test Sync</button>
+                <button class="btn" onclick="manualSync()" style="background: #3498db; margin-left: 10px;">Force Sync</button>
+                <button class="btn" onclick="clearLocalData()" style="background: #e74c3c; margin-left: 10px;">Clear Data</button>
+                <div style="margin-top: 10px; font-size: 0.9em; color: #666;">
+                    <strong>Status:</strong> <span id="dbStatus" style="color: #27ae60;">Ready</span><br>
+                    <strong>Last Sync:</strong> <span id="lastSyncTime">Never</span><br>
+                    <strong>Stored Dates:</strong> <span id="storedDates">0</span>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h3>Quick Navigation</h3>
+                <div id="dateNavigation" class="date-navigation"></div>
+            </div>
+            
+            <div class="section">
+                <h3>Day Off Management</h3>
+                <div id="dayOffNotification"></div>
+                <div class="form-group">
+                    <label for="dayOffDate">Mark Day Off:</label>
+                    <input type="date" id="dayOffDate">
+                </div>
+                <button class="btn" onclick="toggleDayOff()">Toggle Day Off</button>
+                <div id="dayOffList" style="margin-top: 15px;"></div>
+            </div>
+            
+            <div class="section">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Pending Bookings</h3>
+                    <div>
+                        <input type="text" id="pendingSearch" placeholder="Search pending bookings..." style="padding: 5px; border-radius: 4px; border: 1px solid #ddd;">
+                    </div>
+                </div>
+                <div id="adminPanelNotification"></div>
+                <div id="pendingBookings"></div>
+            </div>
+            
+            <div class="section">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>All Bookings</h3>
+                    <div>
+                        <input type="text" id="allBookingsSearch" placeholder="Search all bookings..." style="padding: 5px; border-radius: 4px; border: 1px solid #ddd;">
+                    </div>
+                </div>
+                <div id="allBookings"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration - NEW DATABASE
+        const firebaseConfig = {
+            apiKey: "AIzaSyAkS0YbJgeGnfFFDQE6hM8zPnGGI-wfjuM",
+            authDomain: "ride-an-tet.firebaseapp.com",
+            projectId: "ride-an-tet",
+            storageBucket: "ride-an-tet.firebasestorage.app",
+            messagingSenderId: "973583964870",
+            appId: "1:973583964870:web:4de08a5a0d65bad16c15c7",
+            measurementId: "G-DVQWWR9GJG"
+        };
+
+        // Initialize Firebase
+        let db;
+        let firebaseInitialized = false;
+        
+        try {
+            firebase.initializeApp(firebaseConfig);	
+            db = firebase.firestore();
+            firebaseInitialized = true;
+            document.getElementById('firebaseStatus').textContent = 'Connected';
+            document.getElementById('firebaseStatus').style.color = '#27ae60';
+        } catch (error) {
+            console.error("Firebase initialization error:", error);
+            document.getElementById('firebaseStatus').textContent = 'Error - Check config';
+            document.getElementById('firebaseStatus').style.color = '#e74c3c';
+        }
+
+        // Simple booking system with Firebase
+        const STORAGE_KEY = 'rideBookcutBookings';
+        
+        let bookingsData = {};
+        let daysOffData = [];
+        let selectedDate = '';
+        let selectedTime = '';
+        let isAdminLoggedIn = false;
+        
+        // POPUP FUNCTIONS
+        function showPopup(date, time, service) {
+            console.log('🎉 Showing popup...'); // Debug log
+            const popup = document.getElementById('bookingPopup');
+            const dateObj = new Date(date + 'T00:00:00');
+            const formattedDate = dateObj.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            document.getElementById('popupDate').textContent = formattedDate;
+            document.getElementById('popupTime').textContent = time;
+            document.getElementById('popupService').textContent = service;
+            
+            // Try to load image for popup
+            loadPopupImage();
+            
+            // Force display
+            popup.style.display = 'flex';
+            popup.classList.add('show');
+            document.body.style.overflow = 'hidden';
+            console.log('✅ Popup shown!'); // Debug log
+        }
+        
+        function closePopup() {
+            console.log('❌ Closing popup...'); // Debug log
+            const popup = document.getElementById('bookingPopup');
+            popup.classList.remove('show');
+            popup.style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+        
+        // Load popup image
+        function loadPopupImage() {
+            const popupImage = document.getElementById('popupImage');
+            const popupImageFallback = document.getElementById('popupImageFallback');
+            
+            const possibleImages = [
+                'payment-qr.jpg',
+                'payment-qr.png',
+                'logo.jpg.jpg',
+                'logo.jpg',
+                'thank-you.jpg',
+                'https://ridebookcut.github.io/booking-system/payment-qr.jpg'
+            ];
+            
+            let imageLoaded = false;
+            
+            const tryLoadImage = (index) => {
+                if (index >= possibleImages.length || imageLoaded) {
+                    if (!imageLoaded) {
+                        popupImageFallback.style.display = 'block';
+                    }
+                    return;
+                }
+                
+                const testImg = new Image();
+                testImg.onload = function() {
+                    if (!imageLoaded) {
+                        popupImage.src = possibleImages[index];
+                        popupImage.style.display = 'block';
+                        popupImageFallback.style.display = 'none';
+                        imageLoaded = true;
+                    }
+                };
+                testImg.onerror = function() {
+                    tryLoadImage(index + 1);
+                };
+                testImg.src = possibleImages[index];
+            };
+            
+            tryLoadImage(0);
+        }
+        
+        // Notification system
+        function showNotification(containerId, message, type = 'info') {
+            const container = document.getElementById(containerId);
+            if (container) {
+                container.innerHTML = `<div class="notification ${type}">${message}</div>`;
+                setTimeout(() => container.innerHTML = '', 5000);
+            }
+        }
+        
+        // Initialize
+        window.onload = async function() {
+            // Auto-select next day after 7 PM
+            const now = new Date();
+            let selectedDateObj = now;
+            let dateAutoAdvanced = false;
+            if (now.getHours() >= 19) { // 7 PM
+                selectedDateObj = new Date(now);
+                selectedDateObj.setDate(now.getDate() + 1);
+                dateAutoAdvanced = true;
+            }
+            
+            const selectedDateStr = selectedDateObj.toISOString().split('T')[0];
+            document.getElementById('selectedDate').value = selectedDateStr;
+            // Allow viewing past dates - no minimum date restriction
+            selectedDate = selectedDateStr;
+            
+            // Show notification if date was auto-advanced
+            if (dateAutoAdvanced) {
+                showNotification('customerNotification', '📅 Date automatically set to next day after 7 PM', 'info');
+            }
+            
+            // Try to load your original logo
+            await loadLogo();
+            
+            // Load data from Firebase or localStorage
+            await loadFromStorage();
+            loadTimeSlots();
+            updateDisplay();
+        };
+        
+        // Smart logo loading
+        async function loadLogo() {
+            const logoImage = document.getElementById('logoImage');
+            const logoFallback = document.getElementById('logoFallback');
+            const possibleNames = [
+                'logo.jpg.jpg', 
+                'logo.jpg', 
+                'logo.jpeg', 
+                'logo.png', 
+                'ride-bookcut-logo.jpg', 
+                'ride-bookcut-logo.png',
+                'https://ridebookcut.github.io/booking-system/logo.jpg.jpg'
+            ];
+            
+            for (const filename of possibleNames) {
+                try {
+                    await new Promise((resolve, reject) => {
+                        const testImg = new Image();
+                        testImg.onload = () => {
+                            console.log('✅ Your original logo loaded:', filename);
+                            logoImage.src = filename;
+                            logoImage.style.display = 'block';
+                            logoFallback.style.display = 'none';
+                            resolve();
+                        };
+                        testImg.onerror = reject;
+                        testImg.src = filename;
+                    });
+                    return;
+                } catch (error) {
+                    // Continue trying next filename
+                }
+            }
+            
+            console.log('📋 Logo will display when hosted online');
+            logoFallback.style.display = 'block';
+        }
+        
+        // Load from Firebase or localStorage
+        async function loadFromStorage() {
+            if (firebaseInitialized) {
+                try {
+                    // Load bookings from Firebase
+                    const bookingsSnapshot = await db.collection('bookings').get();
+                    bookingsData = {};
+                    bookingsSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        if (!bookingsData[data.date]) {
+                            bookingsData[data.date] = {};
+                        }
+                        bookingsData[data.date][data.time] = data;
+                    });
+                    
+                    // Load days off from Firebase
+                    const daysOffSnapshot = await db.collection('daysOff').get();
+                    daysOffData = [];
+                    daysOffSnapshot.forEach(doc => {
+                        daysOffData.push(doc.id);
+                    });
+                    
+                    console.log('✅ Data loaded from Firebase');
+                } catch (error) {
+                    console.error('❌ Firebase load error, falling back to localStorage:', error);
+                    loadFromLocalStorage();
+                }
+            } else {
+                loadFromLocalStorage();
+            }
+        }
+        
+        // Fallback to localStorage
+        function loadFromLocalStorage() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                bookingsData = JSON.parse(stored);
+            }
+            
+            const storedDaysOff = localStorage.getItem(STORAGE_KEY + '_daysoff');
+            if (storedDaysOff) {
+                daysOffData = JSON.parse(storedDaysOff);
+            }
+        }
+        
+        // Save to Firebase or localStorage
+        async function saveToStorage() {
+            if (firebaseInitialized) {
+                try {
+                    // Save bookings to Firebase
+                    const batch = db.batch();
+                    
+                    // Clear existing bookings
+                    const existingBookings = await db.collection('bookings').get();
+                    existingBookings.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    
+                    // Add current bookings
+                    Object.keys(bookingsData).forEach(date => {
+                        Object.keys(bookingsData[date]).forEach(time => {
+                            const booking = bookingsData[date][time];
+                            const docRef = db.collection('bookings').doc(`${date}_${time}`);
+                            batch.set(docRef, booking);
+                        });
+                    });
+                    
+                    // Clear existing days off
+                    const existingDaysOff = await db.collection('daysOff').get();
+                    existingDaysOff.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    
+                    // Add current days off
+                    daysOffData.forEach(date => {
+                        const docRef = db.collection('daysOff').doc(date);
+                        batch.set(docRef, { date: date });
+                    });
+                    
+                    await batch.commit();
+                    console.log('✅ Data saved to Firebase');
+                } catch (error) {
+                    console.error('❌ Firebase save error:', error);
+                    saveToLocalStorage();
+                }
+            } else {
+                saveToLocalStorage();
+            }
+            
+            updateDisplay();
+        }
+        
+        // Fallback to localStorage
+        function saveToLocalStorage() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(bookingsData));
+            localStorage.setItem(STORAGE_KEY + '_daysoff', JSON.stringify(daysOffData));
+        }
+        
+        // Update display counters
+        function updateDisplay() {
+            const storedDatesElement = document.getElementById('storedDates');
+            const statusElement = document.getElementById('dbStatus');
+            const timeElement = document.getElementById('lastSyncTime');
+            
+            if (storedDatesElement) {
+                storedDatesElement.textContent = Object.keys(bookingsData).length;
+            }
+            
+            if (statusElement) {
+                statusElement.textContent = firebaseInitialized ? 'Firebase Connected' : 'Using localStorage';
+                statusElement.style.color = firebaseInitialized ? '#27ae60' : '#f39c12';
+            }
+            
+            if (timeElement) {
+                timeElement.textContent = new Date().toLocaleTimeString();
+            }
+            
+            // Refresh admin panel if user is logged in
+            if (isAdminLoggedIn) {
+                loadAdminBookings();
+            }
+        }
+        
+        // Generate time slots
+        function generateTimeSlots() {
+            const slots = [];
+            // Start at 8:30 AM
+            slots.push('08:30');
+            // Then continue from 9:00 AM to 6:30 PM
+            for (let hour = 9; hour < 19; hour++) {
+                for (let minute = 0; minute < 60; minute += 30) {
+                    slots.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+                }
+            }
+            return slots;
+        }
+        
+        // Load and display time slots
+        function loadTimeSlots() {
+            selectedDate = document.getElementById('selectedDate').value;
+            if (!selectedDate) return;
+            
+            const container = document.getElementById('timeSlots');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            // Check if this date is marked as day off
+            if (daysOffData.includes(selectedDate)) {
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: #e74c3c; font-weight: bold; font-size: 1.2em;">🚫 DAY OFF - No bookings available</div>';
+                return;
+            }
+            
+            const dateBookings = bookingsData[selectedDate] || {};
+            const now = new Date();
+            const today = now.toISOString().split('T')[0];
+            
+            generateTimeSlots().forEach(time => {
+                const slot = document.createElement('div');
+                slot.className = 'time-slot';
+                slot.textContent = time;
+                
+                const booking = dateBookings[time];
+                if (booking) {
+                    if (booking.status === 'pending') {
+                        slot.className += ' pending';
+                        slot.innerHTML = `${time}<br><small>Pending</small>`;
+                    } else if (booking.status === 'confirmed') {
+                        slot.className += ' confirmed';
+                        slot.innerHTML = `${time}<br><strong>BOOKED</strong><br><small>${booking.customerName}</small>`;
+                    }
+                } else {
+                    // Available slot
+                    slot.className += ' available';
+                    
+                    // Check if slot is in the past (only for today)
+                    let isPast = false;
+                    if (selectedDate === today) {
+                        const [hours, minutes] = time.split(':').map(Number);
+                        const slotTime = new Date(selectedDate);
+                        slotTime.setHours(hours, minutes, 0, 0);
+                        isPast = slotTime < now;
+                    }
+                    
+                    // Always make future slots clickable
+                    if (!isPast) {
+                        slot.style.cursor = 'pointer';
+                        slot.onclick = () => selectTimeSlot(time, slot);
+                    } else {
+                        slot.style.opacity = '0.5';
+                    }
+                }
+                
+                container.appendChild(slot);
+            });
+        }
+        
+        // Select time slot
+        function selectTimeSlot(time, element) {
+            document.querySelectorAll('.time-slot').forEach(slot => slot.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedTime = time;
+            document.getElementById('bookingForm').classList.remove('hidden');
+        }
+        
+        // Submit booking - WITH POPUP
+        function submitBooking() {
+            console.log('📝 Submitting booking...'); // Debug log
+            const name = document.getElementById('customerName').value.trim();
+            const phone = document.getElementById('customerPhone').value.trim();
+            const service = document.getElementById('serviceRequest').value.trim();
+            
+            if (!name || !phone || !service || !selectedTime) {
+                alert('⚠️ Please fill in all fields and select a time slot.');
+                console.log('❌ Form incomplete'); // Debug log
+                return;
+            }
+            
+            if (daysOffData.includes(selectedDate)) {
+                alert('🚫 Sorry, this date is marked as day off. Please select another date.');
+                return;
+            }
+            
+            const booking = {
+                id: 'BK' + Date.now(),
+                date: selectedDate,
+                time: selectedTime,
+                customerName: name,
+                customerPhone: phone,
+                serviceRequest: service,
+                status: 'pending',
+                timestamp: new Date().toISOString()
+            };
+            
+            console.log('💾 Saving booking:', booking); // Debug log
+            
+            if (!bookingsData[selectedDate]) bookingsData[selectedDate] = {};
+            bookingsData[selectedDate][selectedTime] = booking;
+            
+            // Save to storage
+            saveToStorage().then(() => {
+                console.log('✅ Booking saved!'); // Debug log
+                
+                // Clear form
+                document.getElementById('customerName').value = '';
+                document.getElementById('customerPhone').value = '';
+                document.getElementById('serviceRequest').value = '';
+                document.getElementById('bookingForm').classList.add('hidden');
+                
+                // Refresh display
+                loadTimeSlots();
+                
+                // SHOW POPUP
+                setTimeout(() => {
+                    showPopup(selectedDate, selectedTime, service);
+                }, 100);
+            }).catch(error => {
+                console.error('❌ Save error:', error);
+                alert('Error saving booking. Please try again.');
+            });
+        }
+        
+        // Cancel booking (customer)
+        function cancelCustomerBooking() {
+            document.getElementById('bookingForm').classList.add('hidden');
+            document.querySelectorAll('.time-slot').forEach(slot => slot.classList.remove('selected'));
+            selectedTime = '';
+        }
+        
+        // Show customer view
+        function showCustomerView() {
+            document.getElementById('customerView').classList.remove('hidden');
+            document.getElementById('adminView').classList.add('hidden');
+            document.getElementById('customerBtn').classList.add('active');
+            document.getElementById('adminBtn').classList.remove('active');
+            loadTimeSlots();
+        }
+        
+        // Show admin view
+        function showAdminView() {
+            document.getElementById('customerView').classList.add('hidden');
+            document.getElementById('adminView').classList.remove('hidden');
+            document.getElementById('customerBtn').classList.remove('active');
+            document.getElementById('adminBtn').classList.add('active');
+            
+            if (isAdminLoggedIn) {
+                document.getElementById('adminLogin').classList.add('hidden');
+                document.getElementById('adminPanel').classList.remove('hidden');
+                loadAdminBookings();
+                loadDayOffList();
+            } else {
+                document.getElementById('adminLogin').classList.remove('hidden');
+                document.getElementById('adminPanel').classList.add('hidden');
+            }
+        }
+        
+        // Admin login
+        function adminLogin() {
+            const password = document.getElementById('adminPassword').value;
+            
+            if (password === 'ridebookcut123') {
+                isAdminLoggedIn = true;
+                document.getElementById('adminLogin').classList.add('hidden');
+                document.getElementById('adminPanel').classList.remove('hidden');
+                document.getElementById('adminPassword').value = '';
+                
+                loadAdminBookings();
+                loadDayOffList();
+                updateDisplay();
+                showNotification('adminPanelNotification', '✅ Login successful!', 'success');
+            } else {
+                showNotification('adminNotification', '❌ Incorrect password.', 'error');
+                document.getElementById('adminPassword').value = '';
+            }
+        }
+        
+        // Load admin bookings
+        function loadAdminBookings() {
+            const allBookings = [];
+            
+            Object.keys(bookingsData).forEach(date => {
+                if (bookingsData[date]) {
+                    Object.keys(bookingsData[date]).forEach(time => {
+                        if (bookingsData[date][time]) {
+                            allBookings.push(bookingsData[date][time]);
+                        }
+                    });
+                }
+            });
+            
+            const pendingBookings = allBookings.filter(b => b.status === 'pending');
+            const confirmedBookings = allBookings.filter(b => b.status === 'confirmed');
+            const cancelledBookings = allBookings.filter(b => b.status === 'cancelled' || b.status === 'declined');
+            
+            updateBookingStats(pendingBookings.length, confirmedBookings.length, cancelledBookings.length);
+            updateDateNavigation(allBookings);
+            
+            pendingBookings.sort((a, b) => new Date(a.date + ' ' + a.time) - new Date(b.date + ' ' + b.time));
+            
+            const pendingContainer = document.getElementById('pendingBookings');
+            if (pendingContainer) {
+                if (pendingBookings.length === 0) {
+                    pendingContainer.innerHTML = '<p>No pending bookings.</p>';
+                } else {
+                    const pendingByDate = {};
+                    pendingBookings.forEach(booking => {
+                        if (!pendingByDate[booking.date]) {
+                            pendingByDate[booking.date] = [];
+                        }
+                        pendingByDate[booking.date].push(booking);
+                    });
+                    
+                    let pendingHTML = '';
+                    Object.keys(pendingByDate).forEach(date => {
+                        const dateObj = new Date(date + 'T00:00:00');
+                        const formattedDate = dateObj.toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        });
+                        
+                        const today = new Date().toISOString().split('T')[0];
+                        const isToday = date === today;
+                        
+                        pendingHTML += `
+                            <div class="date-group${isToday ? '' : ' collapsed'}" id="pending-date-${date}">
+                                <h4 onclick="toggleDateGroup('pending-date-${date}')"${isToday ? '' : ' class="collapsed"'}>
+                                    ${formattedDate} 
+                                    <span style="float: right; font-size: 0.8em; background: #f39c12; padding: 2px 8px; border-radius: 10px; color: white;">
+                                        ${pendingByDate[date].length} pending
+                                    </span>
+                                </h4>
+                                <div class="bookings-content"${isToday ? '' : ' style="display: none;"'}>
+                        `;
+                        
+                        pendingByDate[date].forEach(booking => {
+                            pendingHTML += `
+                                <div class="booking-item">
+                                    <div>
+                                        <strong>${booking.customerName}</strong><br>
+                                        🕐 ${booking.time}<br>
+                                        📞 ${booking.customerPhone}<br>
+                                        ✂️ ${booking.serviceRequest}
+                                    </div>
+                                    <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                                        <button class="btn confirm" onclick="confirmBooking('${booking.id}')">✅ Confirm</button>
+                                        <button class="btn decline" onclick="declineBooking('${booking.id}')">❌ Decline</button>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        pendingHTML += `
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    pendingContainer.innerHTML = pendingHTML;
+                }
+            }
+            
+            allBookings.sort((a, b) => {
+                const dateComparison = new Date(b.date) - new Date(a.date);
+                if (dateComparison !== 0) {
+                    return dateComparison;
+                }
+                return new Date('1970/01/01 ' + a.time) - new Date('1970/01/01 ' + b.time);
+            });
+            
+            const allContainer = document.getElementById('allBookings');
+            if (allContainer) {
+                if (allBookings.length === 0) {
+                    allContainer.innerHTML = '<p>No bookings yet.</p>';
+                } else {
+                    const allByDate = {};
+                    allBookings.forEach(booking => {
+                        if (!allByDate[booking.date]) {
+                            allByDate[booking.date] = [];
+                        }
+                        allByDate[booking.date].push(booking);
+                    });
+                    
+                    let allHTML = '';
+                    Object.keys(allByDate).sort((a, b) => new Date(b) - new Date(a)).forEach(date => {
+                        const dateObj = new Date(date + 'T00:00:00');
+                        const formattedDate = dateObj.toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        });
+                        
+                        const today = new Date().toISOString().split('T')[0];
+                        const isToday = date === today;
+                        
+                        const dateBookings = allByDate[date];
+                        const datePending = dateBookings.filter(b => b.status === 'pending').length;
+                        const dateConfirmed = dateBookings.filter(b => b.status === 'confirmed').length;
+                        const dateCancelled = dateBookings.filter(b => b.status === 'cancelled' || b.status === 'declined').length;
+                        
+                        allHTML += `
+                            <div class="date-group${isToday ? '' : ' collapsed'}" id="all-date-${date}">
+                                <h4 onclick="toggleDateGroup('all-date-${date}')"${isToday ? '' : ' class="collapsed"'}>
+                                    ${formattedDate}
+                                    <span style="float: right; font-size: 0.8em;">
+                                        ${datePending > 0 ? `<span style="background: #f39c12; padding: 2px 8px; border-radius: 10px; color: white; margin-right: 5px;">${datePending} pending</span>` : ''}
+                                        ${dateConfirmed > 0 ? `<span style="background: #27ae60; padding: 2px 8px; border-radius: 10px; color: white; margin-right: 5px;">${dateConfirmed} confirmed</span>` : ''}
+                                        ${dateCancelled > 0 ? `<span style="background: #e74c3c; padding: 2px 8px; border-radius: 10px; color: white;">${dateCancelled} cancelled</span>` : ''}
+                                    </span>
+                                </h4>
+                                <div class="bookings-content"${isToday ? '' : ' style="display: none;"'}>
+                        `;
+                        
+                        allByDate[date].forEach(booking => {
+                            let statusClass = '';
+                            if (booking.status === 'pending') statusClass = 'background: #fef9e7; border-left: 4px solid #f39c12;';
+                            else if (booking.status === 'confirmed') statusClass = 'background: #e8f8f1; border-left: 4px solid #27ae60;';
+                            else statusClass = 'background: #fadbd8; border-left: 4px solid #e74c3c;';
+                            
+                            allHTML += `
+                                <div class="booking-item" style="${statusClass}">
+                                    <div>
+                                        <strong>${booking.customerName}</strong><br>
+                                        🕐 ${booking.time}<br>
+                                        📞 ${booking.customerPhone}<br>
+                                        ✂️ ${booking.serviceRequest}<br>
+                                        <strong>Status: ${booking.status.toUpperCase()}</strong>
+                                    </div>
+                                    <div style="margin-top: 10px; display: flex; gap: 10px;">
+                                        ${booking.status === 'pending' ? 
+                                            `<button class="btn confirm" onclick="confirmBooking('${booking.id}')">✅ Confirm</button>
+                                             <button class="btn decline" onclick="declineBooking('${booking.id}')" style="background: #e74c3c;">❌ Decline</button>` : 
+                                            ''}
+                                        ${booking.status === 'confirmed' ? 
+                                            `<button class="btn decline" onclick="cancelConfirmedBooking('${booking.id}')" style="background: #e74c3c;">❌ Cancel Booking</button>` : 
+                                            ''}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        allHTML += `
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    allContainer.innerHTML = allHTML;
+                }
+            }
+            
+            const today = new Date().toISOString().split('T')[0];
+            setTimeout(() => {
+                const todayElement = document.getElementById(`all-date-${today}`);
+                if (todayElement) {
+                    todayElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 500);
+        }
+        
+        function updateBookingStats(pendingCount, confirmedCount, cancelledCount) {
+            const statsContainer = document.getElementById('bookingStats');
+            if (statsContainer) {
+                statsContainer.innerHTML = `
+                    <div class="stat-card pending">
+                        <div>PENDING</div>
+                        <div class="stat-value">${pendingCount}</div>
+                        <div>Bookings</div>
+                    </div>
+                    <div class="stat-card confirmed">
+                        <div>CONFIRMED</div>
+                        <div class="stat-value">${confirmedCount}</div>
+                        <div>Bookings</div>
+                    </div>
+                    <div class="stat-card cancelled">
+                        <div>CANCELLED</div>
+                        <div class="stat-value">${cancelledCount}</div>
+                        <div>Bookings</div>
+                    </div>
+                `;
+            }
+        }
+        
+        function updateDateNavigation(allBookings) {
+            const navContainer = document.getElementById('dateNavigation');
+            if (navContainer) {
+                const dates = [...new Set(allBookings.map(b => b.date))].sort();
+                
+                if (dates.length === 0) {
+                    navContainer.innerHTML = '<p>No bookings to navigate to.</p>';
+                    return;
+                }
+                
+                let navHTML = '';
+                dates.forEach(date => {
+                    const dateObj = new Date(date + 'T00:00:00');
+                    const formattedDate = dateObj.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric'
+                    });
+                    
+                    navHTML += `
+                        <div class="date-nav-item" onclick="scrollToDate('${date}')">
+                            ${formattedDate}
+                        </div>
+                    `;
+                });
+                
+                navContainer.innerHTML = navHTML;
+            }
+        }
+        
+        function scrollToDate(date) {
+            const element = document.getElementById(`all-date-${date}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                element.style.border = '2px solid #3498db';
+                setTimeout(() => {
+                    element.style.border = 'none';
+                }, 2000);
+            }
+        }
+        
+        function toggleDateGroup(groupId) {
+            const group = document.getElementById(groupId);
+            if (!group) return;
+            
+            const header = group.querySelector('h4');
+            const content = group.querySelector('.bookings-content');
+            
+            if (!header || !content) return;
+            
+            header.classList.toggle('collapsed');
+            group.classList.toggle('collapsed');
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+            } else {
+                content.style.display = 'none';
+            }
+        }
+        
+        function confirmBooking(bookingId) {
+            updateBookingStatus(bookingId, 'confirmed');
+        }
+        
+        function declineBooking(bookingId) {
+            updateBookingStatus(bookingId, 'declined');
+        }
+        
+        function cancelConfirmedBooking(bookingId) {
+            if (confirm('⚠️ Are you sure you want to cancel this confirmed booking? This cannot be undone!')) {
+                updateBookingStatus(bookingId, 'cancelled');
+            }
+        }
+        
+        function updateBookingStatus(bookingId, newStatus) {
+            Object.keys(bookingsData).forEach(date => {
+                if (bookingsData[date]) {
+                    Object.keys(bookingsData[date]).forEach(time => {
+                        if (bookingsData[date][time] && bookingsData[date][time].id === bookingId) {
+                            if (newStatus === 'declined' || newStatus === 'cancelled') {
+                                delete bookingsData[date][time];
+                            } else {
+                                bookingsData[date][time].status = newStatus;
+                            }
+                            
+                            saveToStorage();
+                            loadAdminBookings();
+                            loadTimeSlots();
+                            
+                            showNotification('adminPanelNotification', 
+                                `✅ Booking ${newStatus === 'confirmed' ? 'confirmed' : newStatus === 'cancelled' ? 'cancelled' : 'declined'}!`, 
+                                'success');
+                            return;
+                        }
+                    });
+                }
+            });
+        }
+        
+        function toggleDayOff() {
+            const dateInput = document.getElementById('dayOffDate');
+            const selectedDayOff = dateInput.value;
+            
+            if (!selectedDayOff) {
+                showNotification('dayOffNotification', '⚠️ Please select a date first.', 'error');
+                return;
+            }
+            
+            const dateIndex = daysOffData.indexOf(selectedDayOff);
+            
+            if (dateIndex === -1) {
+                daysOffData.push(selectedDayOff);
+                
+                if (bookingsData[selectedDayOff]) {
+                    delete bookingsData[selectedDayOff];
+                }
+                
+                saveToStorage();
+                showNotification('dayOffNotification', '🚫 Day marked as OFF! No bookings will be accepted.', 'success');
+            } else {
+                daysOffData.splice(dateIndex, 1);
+                saveToStorage();
+                showNotification('dayOffNotification', '✅ Day off removed! Bookings are now available.', 'success');
+            }
+            
+            dateInput.value = '';
+            loadDayOffList();
+            loadTimeSlots();
+        }
+        
+        function loadDayOffList() {
+            const container = document.getElementById('dayOffList');
+            if (!container) return;
+            
+            if (daysOffData.length === 0) {
+                container.innerHTML = '<p style="color: #666; font-style: italic;">No days off scheduled.</p>';
+                return;
+            }
+            
+            const sortedDates = [...daysOffData].sort();
+            
+            container.innerHTML = '<h4>Scheduled Days Off:</h4>' + 
+                sortedDates.map(date => {
+                    const dateObj = new Date(date + 'T00:00:00');
+                    const formattedDate = dateObj.toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+                    
+                    return `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; margin: 5px 0; background: #f8f9fa; border-radius: 5px; border-left: 4px solid #e74c3c;">
+                            <span>🚫 ${formattedDate}</span>
+                            <button class="btn" style="padding: 5px 10px; font-size: 12px; background: #dc3545;" onclick="removeDayOff('${date}')">Remove</button>
+                        </div>
+                    `;
+                }).join('');
+        }
+        
+        function removeDayOff(date) {
+            const index = daysOffData.indexOf(date);
+            if (index > -1) {
+                daysOffData.splice(index, 1);
+                saveToStorage();
+                showNotification('dayOffNotification', '✅ Day off removed!', 'success');
+                loadDayOffList();
+                loadTimeSlots();
+            }
+        }
+        
+        function testConnection() {
+            if (firebaseInitialized) {
+                showNotification('sheetsNotification', '✅ Firebase connection successful! Real-time sync enabled.', 'success');
+            } else {
+                showNotification('sheetsNotification', '⚠️ Firebase not configured. Using localStorage instead.', 'info');
+            }
+        }
+        
+        function manualSync() {
+            loadFromStorage();
+            loadTimeSlots();
+            if (isAdminLoggedIn) {
+                loadAdminBookings();
+                loadDayOffList();
+            }
+            updateDisplay();
+            showNotification('sheetsNotification', '✅ Manual sync completed!', 'success');
+        }
+        
+        function clearLocalData() {
+            if (confirm('⚠️ Are you sure you want to clear ALL booking data? This cannot be undone!')) {
+                bookingsData = {};
+                daysOffData = [];
+                
+                if (firebaseInitialized) {
+                    db.collection('bookings').get().then(snapshot => {
+                        const batch = db.batch();
+                        snapshot.forEach(doc => {
+                            batch.delete(doc.ref);
+                        });
+                        return batch.commit();
+                    }).then(() => {
+                        return db.collection('daysOff').get();
+                    }).then(snapshot => {
+                        const batch = db.batch();
+                        snapshot.forEach(doc => {
+                            batch.delete(doc.ref);
+                        });
+                        return batch.commit();
+                    }).then(() => {
+                        showNotification('sheetsNotification', '✅ All Firebase data cleared successfully!', 'success');
+                    }).catch(error => {
+                        console.error('Error clearing Firebase data:', error);
+                        showNotification('sheetsNotification', '❌ Error clearing Firebase data.', 'error');
+                    });
+                } else {
+                    localStorage.removeItem(STORAGE_KEY);
+                    localStorage.removeItem(STORAGE_KEY + '_daysoff');
+                    showNotification('sheetsNotification', '✅ Local data cleared successfully!', 'success');
+                }
+                
+                loadTimeSlots();
+                if (isAdminLoggedIn) {
+                    loadAdminBookings();
+                    loadDayOffList();
+                }
+                updateDisplay();
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const pendingSearch = document.getElementById('pendingSearch');
+            const allBookingsSearch = document.getElementById('allBookingsSearch');
+            
+            if (pendingSearch) {
+                pendingSearch.addEventListener('input', function() {
+                    filterBookings('pendingBookings', this.value.toLowerCase());
+                });
+            }
+            
+            if (allBookingsSearch) {
+                allBookingsSearch.addEventListener('input', function() {
+                    filterBookings('allBookings', this.value.toLowerCase());
+                });
+            }
+        });
+        
+        function filterBookings(containerId, searchTerm) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            const bookingItems = container.querySelectorAll('.booking-item');
+            bookingItems.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            
+            const dateGroups = container.querySelectorAll('.date-group');
+            dateGroups.forEach(group => {
+                const visibleItems = group.querySelectorAll('.booking-item:not([style*="display: none"])');
+                const header = group.querySelector('h4');
+                
+                if (visibleItems.length === 0) {
+                    group.style.display = 'none';
+                } else {
+                    group.style.display = 'block';
+                    if (searchTerm) {
+                        group.classList.remove('collapsed');
+                        if (header) header.classList.remove('collapsed');
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ride Bookcut - Barbershop Booking</title>
+    
+    <!-- Open Graph / Social Media Meta Tags -->
+    <meta property="og:title" content="Ride Bookcut - Barbershop Booking">
+    <meta property="og:description" content="Book your barbershop appointment online with Ride Bookcut.">
+    <meta property="og:image" content="https://ridebookcut.github.io/booking-system/logo.jpg.jpg">
+    <meta property="og:url" content="https://ridebookcut.github.io/booking-system/">
+    <meta property="og:type" content="website">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #334024 0%, #2a3520 50%, #1f2718 100%);
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            background: linear-gradient(135deg, #334024, #2a3520);
+            color: #d9c1a9;
+            padding: 40px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            border: 2px solid #d9c1a9;
+        }
+        
+        .logo {
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100px;
+        }
+        
+        .logo img {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #d9c1a9;
+            box-shadow: 0 4px 15px rgba(217, 193, 169, 0.4);
+            display: block;
+        }
+        
+        .logo-fallback {
+            font-size: 4em;
+            display: none;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.8em;
+            font-weight: bold;
+            color: #d9c1a9;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+        }
+        
+        .mode-selector {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .mode-btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #d9c1a9, #c5ae96);
+            color: #334024;
+            border: 2px solid #334024;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(217, 193, 169, 0.3);
+        }
+        
+        .mode-btn.active {
+            background: linear-gradient(135deg, #334024, #2a3520);
+            color: #d9c1a9;
+            border: 2px solid #d9c1a9;
+        }
+        
+        .section {
+            background: rgba(217, 193, 169, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+            border: 2px solid #334024;
+        }
+        
+        .section h3 {
+            margin-top: 0;
+            color: #334024;
+            border-bottom: 3px solid #334024;
+            padding-bottom: 12px;
+            font-size: 1.4em;
+            font-weight: bold;
+        }
+        
+        .time-slots {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .time-slot {
+            padding: 15px 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+            font-weight: bold;
+        }
+        
+        .time-slot.available {
+            border-color: #334024;
+            background-color: rgba(217, 193, 169, 0.3);
+            color: #334024;
+            cursor: pointer;
+        }
+        
+        .time-slot.available:hover {
+            background-color: #334024;
+            color: #d9c1a9;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(51, 64, 36, 0.4);
+        }
+        
+        .time-slot.pending {
+            border-color: #f39c12;
+            background-color: #fef9e7;
+            cursor: not-allowed;
+        }
+        
+        .time-slot.confirmed {
+            border-color: #27ae60;
+            background-color: #e8f8f1;
+            cursor: not-allowed;
+        }
+        
+        .time-slot.selected {
+            background-color: #334024;
+            color: #d9c1a9;
+            border-color: #334024;
+            box-shadow: 0 4px 15px rgba(51, 64, 36, 0.4);
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #334024;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        .btn {
+            padding: 12px 25px;
+            background: linear-gradient(135deg, #334024, #2a3520);
+            color: #d9c1a9;
+            border: 2px solid #d9c1a9;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(51, 64, 36, 0.3);
+        }
+        
+        .btn:hover {
+            background: linear-gradient(135deg, #d9c1a9, #c5ae96);
+            color: #334024;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(217, 193, 169, 0.4);
+        }
+        
+        .btn.confirm {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            border-color: #27ae60;
+            color: white;
+        }
+        
+        .btn.decline {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            border-color: #e74c3c;
+            color: white;
+        }
+        
+        .booking-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+        }
+        
+        .booking-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .stat-card.pending {
+            border-top: 4px solid #f39c12;
+        }
+        
+        .stat-card.confirmed {
+            border-top: 4px solid #27ae60;
+        }
+        
+        .stat-card.cancelled {
+            border-top: 4px solid #e74c3c;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .date-navigation {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .date-nav-item {
+            padding: 8px 15px;
+            background: #334024;
+            color: #d9c1a9;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .date-nav-item:hover {
+            background: #2a3520;
+            transform: translateY(-2px);
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .notification {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        .notification.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
+        }
+        
+        .notification.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 2px solid #f5c6cb;
+        }
+        
+        .notification.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 2px solid #bee5eb;
+        }
+        
+        .date-group {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .date-group h4 {
+            background-color: #334024;
+            color: #d9c1a9;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .date-group h4:hover {
+            background-color: #2a3520;
+        }
+        
+        .date-group h4::before {
+            content: "Click to expand/collapse ▼";
+            float: right;
+            font-size: 0.7em;
+            opacity: 0.7;
+            margin-top: 3px;
+        }
+        
+        .date-group h4.collapsed::before {
+            content: "Click to expand/collapse ▲";
+        }
+        
+        .date-group.collapsed .bookings-content {
+            display: none;
+        }
+        
+        .bookings-content {
+            margin-left: 10px;
+        }
+        
+        /* POPUP MODAL STYLES */
+        .popup-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s ease-in;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        .popup-overlay.show {
+            display: flex !important;
+        }
+        
+        .popup-content {
+            background: linear-gradient(135deg, #d9c1a9, #c5ae96);
+            border-radius: 20px;
+            padding: 30px 20px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            text-align: center;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.5);
+            border: 3px solid #334024;
+            animation: slideIn 0.5s ease-out;
+            position: relative;
+        }
+        
+        .popup-image {
+            width: 90%;
+            max-width: 200px;
+            height: auto;
+            max-height: 300px;
+            margin: 0 auto 20px;
+            object-fit: contain;
+            border: 4px solid #334024;
+            box-shadow: 0 4px 20px rgba(51, 64, 36, 0.3);
+            border-radius: 10px;
+        }
+        
+        .popup-image-fallback {
+            font-size: 100px;
+            margin-bottom: 20px;
+        }
+        
+        .popup-message {
+            font-size: 0.9em;
+            font-weight: bold;
+            color: #FF0000;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        
+        .popup-details {
+            background: rgba(255, 255, 255, 0.6);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        .popup-details p {
+            margin: 8px 0;
+            color: #334024;
+            font-weight: 600;
+        }
+        
+        .popup-close-btn {
+            padding: 15px 40px;
+            background: linear-gradient(135deg, #334024, #2a3520);
+            color: #d9c1a9;
+            border: 2px solid #334024;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(51, 64, 36, 0.3);
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        
+        .popup-close-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .popup-close-btn:hover {
+            background: linear-gradient(135deg, #2a3520, #1f2718);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(51, 64, 36, 0.5);
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px) scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <!-- POPUP MODAL -->
+    <div id="bookingPopup" class="popup-overlay" onclick="if(event.target === this) closePopup()">
+        <div class="popup-content">
+            <img id="popupImage" class="popup-image" src="payment-qr.jpg" alt="Payment QR" style="display: none;">
+            <div class="popup-image-fallback" id="popupImageFallback">✅</div>
+            
+            <div class="popup-message">
+                🎉 Thank You for Booking with Ride Bookcut! 🎉
+            </div>
+            
+            <div class="popup-details">
+                <p><strong>📅 Date:</strong> <span id="popupDate"></span></p>
+                <p><strong>🕐 Time:</strong> <span id="popupTime"></span></p>
+                <p><strong>✂️ Service:</strong> <span id="popupService"></span></p>
+            </div>
+            
+            <p style="color: #334024; margin-bottom: 20px; font-size: 0.8em;">
+                Your booking is <strong style="color: #f39c12;">PENDING</strong>.<br>
+                We'll confirm your appointment soon!
+            </p> confirm your appointment soon!
+            </p>
+            
+            <button class="popup-close-btn" onclick="closePopup()">Got It!</button>
+        </div>
+    </div>
+
+    <div class="header">
+        <div class="logo">
+            <img id="logoImage" src="logo.jpg.jpg" onerror="this.style.display='none'; document.getElementById('logoFallback').style.display='block';" alt="Ride Bookcut Logo">
+            <div class="logo-fallback" id="logoFallback">✂️</div>
+        </div>
+        <h1>Ride Bookcut</h1>
+        <p>Book or Cook</p>
+    </div>
+
+    <div class="mode-selector">
+        <button class="mode-btn active" id="customerBtn" onclick="showCustomerView()">Customer View</button>
+        <button class="mode-btn" id="adminBtn" onclick="showAdminView()">Owner Panel</button>
+    </div>
+
+    <!-- Customer View -->
+    <div id="customerView">
+        <div class="section">
+            <h3>Book Your Appointment</h3>
+            <div id="customerNotification"></div>
+            <div class="form-group">
+                <label for="selectedDate">Select Date:</label>
+                <input type="date" id="selectedDate" onchange="loadTimeSlots()">
+            </div>
+            
+            <div id="timeSlots" class="time-slots"></div>
+            
+            <div id="bookingForm" class="hidden">
+                <h3>Booking Details</h3>
+                <div class="form-group">
+                    <label for="customerName">Your Name:</label>
+                    <input type="text" id="customerName" required>
+                </div>
+                <div class="form-group">
+                    <label for="customerPhone">Phone Number:</label>
+                    <input type="tel" id="customerPhone" required>
+                </div>
+                <div class="form-group">
+                    <label for="serviceRequest">Service Requested:</label>
+                    <input type="text" id="serviceRequest" placeholder="e.g., Haircut, Beard trim" required>
+                </div>
+                <button class="btn" onclick="submitBooking()">Submit Booking Request</button>
+                <button class="btn" onclick="cancelCustomerBooking()" style="margin-left: 10px; background: #ccc; color: #333;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin View -->
+    <div id="adminView" class="hidden">
+        <div class="section" id="adminLogin">
+            <h3>Owner Login</h3>
+            <div id="adminNotification"></div>
+            <div class="form-group">
+                <label for="adminPassword">Password:</label>
+                <input type="password" id="adminPassword" placeholder="Enter admin password">
+            </div>
+            <button class="btn" onclick="adminLogin()">Login</button>
+        </div>
+        
+        <div id="adminPanel" class="hidden">
+            <div class="section">
+                <h3>Booking Dashboard</h3>
+                <div id="bookingStats" class="booking-stats"></div>
+                <div id="sheetsNotification"></div>
+                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #ffc107;">
+                    <h4 style="margin: 0 0 10px 0; color: #856404;">🚀 Firebase Cross-Device Sync Ready</h4>
+                    <p style="margin: 0; font-size: 14px; color: #856404;">
+                        <strong>Current Status:</strong> <span id="firebaseStatus">Connecting...</span><br>
+                        <strong>For Real Cross-Device Sync:</strong> Configure Firebase in the &lt;head&gt; section
+                    </p>
+                </div>
+                <button class="btn" onclick="testConnection()" style="background: #2ecc71;">Test Sync</button>
+                <button class="btn" onclick="manualSync()" style="background: #3498db; margin-left: 10px;">Force Sync</button>
+                <button class="btn" onclick="clearLocalData()" style="background: #e74c3c; margin-left: 10px;">Clear Data</button>
+                <div style="margin-top: 10px; font-size: 0.9em; color: #666;">
+                    <strong>Status:</strong> <span id="dbStatus" style="color: #27ae60;">Ready</span><br>
+                    <strong>Last Sync:</strong> <span id="lastSyncTime">Never</span><br>
+                    <strong>Stored Dates:</strong> <span id="storedDates">0</span>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h3>Quick Navigation</h3>
+                <div id="dateNavigation" class="date-navigation"></div>
+            </div>
+            
+            <div class="section">
+                <h3>Day Off Management</h3>
+                <div id="dayOffNotification"></div>
+                <div class="form-group">
+                    <label for="dayOffDate">Mark Day Off:</label>
+                    <input type="date" id="dayOffDate">
+                </div>
+                <button class="btn" onclick="toggleDayOff()">Toggle Day Off</button>
+                <div id="dayOffList" style="margin-top: 15px;"></div>
+            </div>
+            
+            <div class="section">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Pending Bookings</h3>
+                    <div>
+                        <input type="text" id="pendingSearch" placeholder="Search pending bookings..." style="padding: 5px; border-radius: 4px; border: 1px solid #ddd;">
+                    </div>
+                </div>
+                <div id="adminPanelNotification"></div>
+                <div id="pendingBookings"></div>
+            </div>
+            
+            <div class="section">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>All Bookings</h3>
+                    <div>
+                        <input type="text" id="allBookingsSearch" placeholder="Search all bookings..." style="padding: 5px; border-radius: 4px; border: 1px solid #ddd;">
+                    </div>
+                </div>
+                <div id="allBookings"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration - NEW DATABASE
+        const firebaseConfig = {
+            apiKey: "AIzaSyAkS0YbJgeGnfFFDQE6hM8zPnGGI-wfjuM",
+            authDomain: "ride-an-tet.firebaseapp.com",
+            projectId: "ride-an-tet",
+            storageBucket: "ride-an-tet.firebasestorage.app",
+            messagingSenderId: "973583964870",
+            appId: "1:973583964870:web:4de08a5a0d65bad16c15c7",
+            measurementId: "G-DVQWWR9GJG"
+        };
+
+        // Initialize Firebase
+        let db;
+        let firebaseInitialized = false;
+        
+        try {
+            firebase.initializeApp(firebaseConfig);	
+            db = firebase.firestore();
+            firebaseInitialized = true;
+            document.getElementById('firebaseStatus').textContent = 'Connected';
+            document.getElementById('firebaseStatus').style.color = '#27ae60';
+        } catch (error) {
+            console.error("Firebase initialization error:", error);
+            document.getElementById('firebaseStatus').textContent = 'Error - Check config';
+            document.getElementById('firebaseStatus').style.color = '#e74c3c';
+        }
+
+        // Simple booking system with Firebase
+        const STORAGE_KEY = 'rideBookcutBookings';
+        
+        let bookingsData = {};
+        let daysOffData = [];
+        let selectedDate = '';
+        let selectedTime = '';
+        let isAdminLoggedIn = false;
+        
+        // POPUP FUNCTIONS
+        function showPopup(date, time, service) {
+            console.log('🎉 Showing popup...'); // Debug log
+            const popup = document.getElementById('bookingPopup');
+            const dateObj = new Date(date + 'T00:00:00');
+            const formattedDate = dateObj.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            document.getElementById('popupDate').textContent = formattedDate;
+            document.getElementById('popupTime').textContent = time;
+            document.getElementById('popupService').textContent = service;
+            
+            // Try to load image for popup
+            loadPopupImage();
+            
+            // Force display
+            popup.style.display = 'flex';
+            popup.classList.add('show');
+            document.body.style.overflow = 'hidden';
+            console.log('✅ Popup shown!'); // Debug log
+        }
+        
+        function closePopup() {
+            console.log('❌ Closing popup...'); // Debug log
+            const popup = document.getElementById('bookingPopup');
+            popup.classList.remove('show');
+            popup.style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+        
+        // Load popup image
+        function loadPopupImage() {
+            const popupImage = document.getElementById('popupImage');
+            const popupImageFallback = document.getElementById('popupImageFallback');
+            
+            const possibleImages = [
+                'payment-qr.jpg',
+                'payment-qr.png',
+                'logo.jpg.jpg',
+                'logo.jpg',
+                'thank-you.jpg',
+                'https://ridebookcut.github.io/booking-system/payment-qr.jpg'
+            ];
+            
+            let imageLoaded = false;
+            
+            const tryLoadImage = (index) => {
+                if (index >= possibleImages.length || imageLoaded) {
+                    if (!imageLoaded) {
+                        popupImageFallback.style.display = 'block';
+                    }
+                    return;
+                }
+                
+                const testImg = new Image();
+                testImg.onload = function() {
+                    if (!imageLoaded) {
+                        popupImage.src = possibleImages[index];
+                        popupImage.style.display = 'block';
+                        popupImageFallback.style.display = 'none';
+                        imageLoaded = true;
+                    }
+                };
+                testImg.onerror = function() {
+                    tryLoadImage(index + 1);
+                };
+                testImg.src = possibleImages[index];
+            };
+            
+            tryLoadImage(0);
+        }
+        
+        // Notification system
+        function showNotification(containerId, message, type = 'info') {
+            const container = document.getElementById(containerId);
+            if (container) {
+                container.innerHTML = `<div class="notification ${type}">${message}</div>`;
+                setTimeout(() => container.innerHTML = '', 5000);
+            }
+        }
+        
+        // Initialize
+        window.onload = async function() {
+            // Auto-select next day after 7 PM
+            const now = new Date();
+            let selectedDateObj = now;
+            let dateAutoAdvanced = false;
+            if (now.getHours() >= 19) { // 7 PM
+                selectedDateObj = new Date(now);
+                selectedDateObj.setDate(now.getDate() + 1);
+                dateAutoAdvanced = true;
+            }
+            
+            const selectedDateStr = selectedDateObj.toISOString().split('T')[0];
+            document.getElementById('selectedDate').value = selectedDateStr;
+            // Allow viewing past dates - no minimum date restriction
+            selectedDate = selectedDateStr;
+            
+            // Show notification if date was auto-advanced
+            if (dateAutoAdvanced) {
+                showNotification('customerNotification', '📅 Date automatically set to next day after 7 PM', 'info');
+            }
+            
+            // Try to load your original logo
+            await loadLogo();
+            
+            // Load data from Firebase or localStorage
+            await loadFromStorage();
+            loadTimeSlots();
+            updateDisplay();
+        };
+        
+        // Smart logo loading
+        async function loadLogo() {
+            const logoImage = document.getElementById('logoImage');
+            const logoFallback = document.getElementById('logoFallback');
+            const possibleNames = [
+                'logo.jpg.jpg', 
+                'logo.jpg', 
+                'logo.jpeg', 
+                'logo.png', 
+                'ride-bookcut-logo.jpg', 
+                'ride-bookcut-logo.png',
+                'https://ridebookcut.github.io/booking-system/logo.jpg.jpg'
+            ];
+            
+            for (const filename of possibleNames) {
+                try {
+                    await new Promise((resolve, reject) => {
+                        const testImg = new Image();
+                        testImg.onload = () => {
+                            console.log('✅ Your original logo loaded:', filename);
+                            logoImage.src = filename;
+                            logoImage.style.display = 'block';
+                            logoFallback.style.display = 'none';
+                            resolve();
+                        };
+                        testImg.onerror = reject;
+                        testImg.src = filename;
+                    });
+                    return;
+                } catch (error) {
+                    // Continue trying next filename
+                }
+            }
+            
+            console.log('📋 Logo will display when hosted online');
+            logoFallback.style.display = 'block';
+        }
+        
+        // Load from Firebase or localStorage
+        async function loadFromStorage() {
+            if (firebaseInitialized) {
+                try {
+                    // Load bookings from Firebase
+                    const bookingsSnapshot = await db.collection('bookings').get();
+                    bookingsData = {};
+                    bookingsSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        if (!bookingsData[data.date]) {
+                            bookingsData[data.date] = {};
+                        }
+                        bookingsData[data.date][data.time] = data;
+                    });
+                    
+                    // Load days off from Firebase
+                    const daysOffSnapshot = await db.collection('daysOff').get();
+                    daysOffData = [];
+                    daysOffSnapshot.forEach(doc => {
+                        daysOffData.push(doc.id);
+                    });
+                    
+                    console.log('✅ Data loaded from Firebase');
+                } catch (error) {
+                    console.error('❌ Firebase load error, falling back to localStorage:', error);
+                    loadFromLocalStorage();
+                }
+            } else {
+                loadFromLocalStorage();
+            }
+        }
+        
+        // Fallback to localStorage
+        function loadFromLocalStorage() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                bookingsData = JSON.parse(stored);
+            }
+            
+            const storedDaysOff = localStorage.getItem(STORAGE_KEY + '_daysoff');
+            if (storedDaysOff) {
+                daysOffData = JSON.parse(storedDaysOff);
+            }
+        }
+        
+        // Save to Firebase or localStorage
+        async function saveToStorage() {
+            if (firebaseInitialized) {
+                try {
+                    // Save bookings to Firebase
+                    const batch = db.batch();
+                    
+                    // Clear existing bookings
+                    const existingBookings = await db.collection('bookings').get();
+                    existingBookings.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    
+                    // Add current bookings
+                    Object.keys(bookingsData).forEach(date => {
+                        Object.keys(bookingsData[date]).forEach(time => {
+                            const booking = bookingsData[date][time];
+                            const docRef = db.collection('bookings').doc(`${date}_${time}`);
+                            batch.set(docRef, booking);
+                        });
+                    });
+                    
+                    // Clear existing days off
+                    const existingDaysOff = await db.collection('daysOff').get();
+                    existingDaysOff.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    
+                    // Add current days off
+                    daysOffData.forEach(date => {
+                        const docRef = db.collection('daysOff').doc(date);
+                        batch.set(docRef, { date: date });
+                    });
+                    
+                    await batch.commit();
+                    console.log('✅ Data saved to Firebase');
+                } catch (error) {
+                    console.error('❌ Firebase save error:', error);
+                    saveToLocalStorage();
+                }
+            } else {
+                saveToLocalStorage();
+            }
+            
+            updateDisplay();
+        }
+        
+        // Fallback to localStorage
+        function saveToLocalStorage() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(bookingsData));
+            localStorage.setItem(STORAGE_KEY + '_daysoff', JSON.stringify(daysOffData));
+        }
+        
+        // Update display counters
+        function updateDisplay() {
+            const storedDatesElement = document.getElementById('storedDates');
+            const statusElement = document.getElementById('dbStatus');
+            const timeElement = document.getElementById('lastSyncTime');
+            
+            if (storedDatesElement) {
+                storedDatesElement.textContent = Object.keys(bookingsData).length;
+            }
+            
+            if (statusElement) {
+                statusElement.textContent = firebaseInitialized ? 'Firebase Connected' : 'Using localStorage';
+                statusElement.style.color = firebaseInitialized ? '#27ae60' : '#f39c12';
+            }
+            
+            if (timeElement) {
+                timeElement.textContent = new Date().toLocaleTimeString();
+            }
+            
+            // Refresh admin panel if user is logged in
+            if (isAdminLoggedIn) {
+                loadAdminBookings();
+            }
+        }
+        
+        // Generate time slots
+        function generateTimeSlots() {
+            const slots = [];
+            // Start at 8:30 AM
+            slots.push('08:30');
+            // Then continue from 9:00 AM to 6:30 PM
+            for (let hour = 9; hour < 19; hour++) {
+                for (let minute = 0; minute < 60; minute += 30) {
+                    slots.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+                }
+            }
+            return slots;
+        }
+        
+        // Load and display time slots
+        function loadTimeSlots() {
+            selectedDate = document.getElementById('selectedDate').value;
+            if (!selectedDate) return;
+            
+            const container = document.getElementById('timeSlots');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            // Check if this date is marked as day off
+            if (daysOffData.includes(selectedDate)) {
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: #e74c3c; font-weight: bold; font-size: 1.2em;">🚫 DAY OFF - No bookings available</div>';
+                return;
+            }
+            
+            const dateBookings = bookingsData[selectedDate] || {};
+            const now = new Date();
+            const today = now.toISOString().split('T')[0];
+            
+            generateTimeSlots().forEach(time => {
+                const slot = document.createElement('div');
+                slot.className = 'time-slot';
+                slot.textContent = time;
+                
+                const booking = dateBookings[time];
+                if (booking) {
+                    if (booking.status === 'pending') {
+                        slot.className += ' pending';
+                        slot.innerHTML = `${time}<br><small>Pending</small>`;
+                    } else if (booking.status === 'confirmed') {
+                        slot.className += ' confirmed';
+                        slot.innerHTML = `${time}<br><strong>BOOKED</strong><br><small>${booking.customerName}</small>`;
+                    }
+                } else {
+                    // Available slot
+                    slot.className += ' available';
+                    
+                    // Check if slot is in the past (only for today)
+                    let isPast = false;
+                    if (selectedDate === today) {
+                        const [hours, minutes] = time.split(':').map(Number);
+                        const slotTime = new Date(selectedDate);
+                        slotTime.setHours(hours, minutes, 0, 0);
+                        isPast = slotTime < now;
+                    }
+                    
+                    // Always make future slots clickable
+                    if (!isPast) {
+                        slot.style.cursor = 'pointer';
+                        slot.onclick = () => selectTimeSlot(time, slot);
+                    } else {
+                        slot.style.opacity = '0.5';
+                    }
+                }
+                
+                container.appendChild(slot);
+            });
+        }
+        
+        // Select time slot
+        function selectTimeSlot(time, element) {
+            document.querySelectorAll('.time-slot').forEach(slot => slot.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedTime = time;
+            document.getElementById('bookingForm').classList.remove('hidden');
+        }
+        
+        // Submit booking - WITH POPUP
+        function submitBooking() {
+            console.log('📝 Submitting booking...'); // Debug log
+            const name = document.getElementById('customerName').value.trim();
+            const phone = document.getElementById('customerPhone').value.trim();
+            const service = document.getElementById('serviceRequest').value.trim();
+            
+            if (!name || !phone || !service || !selectedTime) {
+                alert('⚠️ Please fill in all fields and select a time slot.');
+                console.log('❌ Form incomplete'); // Debug log
+                return;
+            }
+            
+            if (daysOffData.includes(selectedDate)) {
+                alert('🚫 Sorry, this date is marked as day off. Please select another date.');
+                return;
+            }
+            
+            const booking = {
+                id: 'BK' + Date.now(),
+                date: selectedDate,
+                time: selectedTime,
+                customerName: name,
+                customerPhone: phone,
+                serviceRequest: service,
+                status: 'pending',
+                timestamp: new Date().toISOString()
+            };
+            
+            console.log('💾 Saving booking:', booking); // Debug log
+            
+            if (!bookingsData[selectedDate]) bookingsData[selectedDate] = {};
+            bookingsData[selectedDate][selectedTime] = booking;
+            
+            // Save to storage
+            saveToStorage().then(() => {
+                console.log('✅ Booking saved!'); // Debug log
+                
+                // Clear form
+                document.getElementById('customerName').value = '';
+                document.getElementById('customerPhone').value = '';
+                document.getElementById('serviceRequest').value = '';
+                document.getElementById('bookingForm').classList.add('hidden');
+                
+                // Refresh display
+                loadTimeSlots();
+                
+                // SHOW POPUP
+                setTimeout(() => {
+                    showPopup(selectedDate, selectedTime, service);
+                }, 100);
+            }).catch(error => {
+                console.error('❌ Save error:', error);
+                alert('Error saving booking. Please try again.');
+            });
         }
         
         // Cancel booking (customer)
