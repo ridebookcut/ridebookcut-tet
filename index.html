@@ -129,6 +129,8 @@
             transition: all 0.3s ease;
             background: white;
             font-weight: bold;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
         }
         
         .time-slot.available {
@@ -138,7 +140,8 @@
             cursor: pointer;
         }
         
-        .time-slot.available:hover {
+        .time-slot.available:hover,
+        .time-slot.available:active {
             background-color: #334024;
             color: #d9c1a9;
             transform: translateY(-2px);
@@ -195,6 +198,8 @@
             font-weight: bold;
             transition: all 0.3s ease;
             box-shadow: 0 4px 15px rgba(51, 64, 36, 0.3);
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
         }
         
         .btn:hover {
@@ -202,6 +207,10 @@
             color: #334024;
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(217, 193, 169, 0.4);
+        }
+        
+        .btn:active {
+            transform: scale(0.98);
         }
         
         .btn.confirm {
@@ -452,6 +461,25 @@
             box-shadow: 0 6px 20px rgba(51, 64, 36, 0.5);
         }
         
+        /* Sync indicator */
+        .sync-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            background: #334024;
+            color: #d9c1a9;
+            border-radius: 20px;
+            font-size: 12px;
+            z-index: 1000;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .sync-indicator.show {
+            display: block;
+        }
+        
         @keyframes slideIn {
             from {
                 opacity: 0;
@@ -467,13 +495,33 @@
             from { opacity: 0; }
             to { opacity: 1; }
         }
+        
+        /* Mobile improvements */
+        @media (max-width: 600px) {
+            .popup-content {
+                padding: 20px 15px;
+                margin: 10px;
+            }
+            
+            .popup-image {
+                max-width: 150px;
+            }
+            
+            .time-slot {
+                padding: 12px 8px;
+                font-size: 14px;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- Sync Indicator -->
+    <div id="syncIndicator" class="sync-indicator">📡 Syncing...</div>
+
     <!-- POPUP MODAL -->
     <div id="bookingPopup" class="popup-overlay" onclick="if(event.target === this) closePopup()">
         <div class="popup-content">
-            <img id="popupImage" class="popup-image" src="payment-qr.jpg.png" alt="Payment QR" style="display: none;">
+            <img id="popupImage" class="popup-image" src="payment-qr.jpg" alt="Payment QR" style="display: none;">
             <div class="popup-image-fallback" id="popupImageFallback">✅</div>
             
             <div class="popup-message">
@@ -489,7 +537,6 @@
             <p style="color: #334024; margin-bottom: 20px; font-size: 0.8em;">
                 Your booking is <strong style="color: #f39c12;">PENDING</strong>.<br>
                 We'll confirm your appointment soon!
-            </p> confirm your appointment soon!
             </p>
             
             <button class="popup-close-btn" onclick="closePopup()">Got It!</button>
@@ -560,10 +607,10 @@
                 <div id="bookingStats" class="booking-stats"></div>
                 <div id="sheetsNotification"></div>
                 <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #ffc107;">
-                    <h4 style="margin: 0 0 10px 0; color: #856404;">🚀 Firebase Cross-Device Sync Ready</h4>
+                    <h4 style="margin: 0 0 10px 0; color: #856404;">🚀 Firebase Real-Time Sync</h4>
                     <p style="margin: 0; font-size: 14px; color: #856404;">
-                        <strong>Current Status:</strong> <span id="firebaseStatus">Connecting...</span><br>
-                        <strong>For Real Cross-Device Sync:</strong> Configure Firebase in the &lt;head&gt; section
+                        <strong>Status:</strong> <span id="firebaseStatus">Connecting...</span><br>
+                        <strong>Real-time Listeners:</strong> <span id="listenerStatus">Not active</span>
                     </p>
                 </div>
                 <button class="btn" onclick="testConnection()" style="background: #2ecc71;">Test Sync</button>
@@ -616,7 +663,7 @@
     </div>
 
     <script>
-        // Firebase configuration - NEW DATABASE
+        // Firebase configuration - YOUR DATABASE
         const firebaseConfig = {
             apiKey: "AIzaSyAkS0YbJgeGnfFFDQE6hM8zPnGGI-wfjuM",
             authDomain: "ride-an-tet.firebaseapp.com",
@@ -630,17 +677,41 @@
         // Initialize Firebase
         let db;
         let firebaseInitialized = false;
+        let realtimeListenersActive = false;
         
         try {
-            firebase.initializeApp(firebaseConfig);	
+            firebase.initializeApp(firebaseConfig);
             db = firebase.firestore();
             firebaseInitialized = true;
-            document.getElementById('firebaseStatus').textContent = 'Connected';
-            document.getElementById('firebaseStatus').style.color = '#27ae60';
+            console.log('✅ Firebase initialized successfully');
+            updateFirebaseStatus('Connected', '#27ae60');
         } catch (error) {
             console.error("Firebase initialization error:", error);
-            document.getElementById('firebaseStatus').textContent = 'Error - Check config';
-            document.getElementById('firebaseStatus').style.color = '#e74c3c';
+            updateFirebaseStatus('Error - Check config', '#e74c3c');
+        }
+
+        function updateFirebaseStatus(text, color) {
+            const statusEl = document.getElementById('firebaseStatus');
+            if (statusEl) {
+                statusEl.textContent = text;
+                statusEl.style.color = color;
+            }
+        }
+
+        function updateListenerStatus(text, color) {
+            const statusEl = document.getElementById('listenerStatus');
+            if (statusEl) {
+                statusEl.textContent = text;
+                statusEl.style.color = color;
+            }
+        }
+
+        function showSyncIndicator() {
+            const indicator = document.getElementById('syncIndicator');
+            if (indicator) {
+                indicator.classList.add('show');
+                setTimeout(() => indicator.classList.remove('show'), 2000);
+            }
         }
 
         // Simple booking system with Firebase
@@ -652,9 +723,78 @@
         let selectedTime = '';
         let isAdminLoggedIn = false;
         
+        // ============================================
+        // REAL-TIME LISTENERS - THE KEY FIX!
+        // ============================================
+        function setupRealtimeListeners() {
+            if (!firebaseInitialized || realtimeListenersActive) return;
+            
+            console.log('📡 Setting up real-time listeners...');
+            
+            try {
+                // Listen for booking changes in REAL-TIME
+                db.collection('bookings').onSnapshot((snapshot) => {
+                    console.log('📡 Real-time booking update received!');
+                    showSyncIndicator();
+                    
+                    bookingsData = {};
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        if (!bookingsData[data.date]) {
+                            bookingsData[data.date] = {};
+                        }
+                        bookingsData[data.date][data.time] = data;
+                    });
+                    
+                    // Also save to localStorage as backup
+                    saveToLocalStorage();
+                    
+                    // Refresh UI
+                    loadTimeSlots();
+                    if (isAdminLoggedIn) {
+                        loadAdminBookings();
+                    }
+                    updateDisplay();
+                    
+                    document.getElementById('lastSyncTime').textContent = new Date().toLocaleTimeString();
+                }, (error) => {
+                    console.error('❌ Firestore bookings listener error:', error);
+                    updateListenerStatus('Error: ' + error.message, '#e74c3c');
+                });
+                
+                // Listen for days off changes in REAL-TIME
+                db.collection('daysOff').onSnapshot((snapshot) => {
+                    console.log('📡 Real-time days off update received!');
+                    
+                    daysOffData = [];
+                    snapshot.forEach(doc => {
+                        daysOffData.push(doc.id);
+                    });
+                    
+                    // Also save to localStorage as backup
+                    localStorage.setItem(STORAGE_KEY + '_daysoff', JSON.stringify(daysOffData));
+                    
+                    loadTimeSlots();
+                    if (isAdminLoggedIn) {
+                        loadDayOffList();
+                    }
+                });
+                
+                realtimeListenersActive = true;
+                updateListenerStatus('Active ✅', '#27ae60');
+                console.log('✅ Real-time listeners active!');
+                
+            } catch (error) {
+                console.error('❌ Error setting up listeners:', error);
+                updateListenerStatus('Failed', '#e74c3c');
+            }
+        }
+        
+        // ============================================
         // POPUP FUNCTIONS
+        // ============================================
         function showPopup(date, time, service) {
-            console.log('🎉 Showing popup...'); // Debug log
+            console.log('🎉 Showing popup...');
             const popup = document.getElementById('bookingPopup');
             const dateObj = new Date(date + 'T00:00:00');
             const formattedDate = dateObj.toLocaleDateString('en-US', {
@@ -675,11 +815,11 @@
             popup.style.display = 'flex';
             popup.classList.add('show');
             document.body.style.overflow = 'hidden';
-            console.log('✅ Popup shown!'); // Debug log
+            console.log('✅ Popup shown!');
         }
         
         function closePopup() {
-            console.log('❌ Closing popup...'); // Debug log
+            console.log('❌ Closing popup...');
             const popup = document.getElementById('bookingPopup');
             popup.classList.remove('show');
             popup.style.display = 'none';
@@ -691,13 +831,12 @@
             const popupImage = document.getElementById('popupImage');
             const popupImageFallback = document.getElementById('popupImageFallback');
             
-const possibleImages = [
-    'payment-qr.jpg.png',  // ← ADD THIS LINE FIRST
-    'payment-qr.jpg',
-    'payment-qr.png',
-    'logo.jpg.jpg',
-                'thank-you.jpg',
-                'https://ridebookcut.github.io/booking-system/payment-qr.jpg'
+            const possibleImages = [
+                'payment-qr.jpg',
+                'payment-qr.png',
+                'payment-qr.jpg.png',
+                'logo.jpg.jpg',
+                'logo.jpg'
             ];
             
             let imageLoaded = false;
@@ -705,6 +844,7 @@ const possibleImages = [
             const tryLoadImage = (index) => {
                 if (index >= possibleImages.length || imageLoaded) {
                     if (!imageLoaded) {
+                        popupImage.style.display = 'none';
                         popupImageFallback.style.display = 'block';
                     }
                     return;
@@ -737,13 +877,17 @@ const possibleImages = [
             }
         }
         
-        // Initialize
+        // ============================================
+        // INITIALIZE
+        // ============================================
         window.onload = async function() {
+            console.log('🚀 Initializing app...');
+            
             // Auto-select next day after 7 PM
             const now = new Date();
             let selectedDateObj = now;
             let dateAutoAdvanced = false;
-            if (now.getHours() >= 19) { // 7 PM
+            if (now.getHours() >= 19) {
                 selectedDateObj = new Date(now);
                 selectedDateObj.setDate(now.getDate() + 1);
                 dateAutoAdvanced = true;
@@ -751,21 +895,26 @@ const possibleImages = [
             
             const selectedDateStr = selectedDateObj.toISOString().split('T')[0];
             document.getElementById('selectedDate').value = selectedDateStr;
-            // Allow viewing past dates - no minimum date restriction
             selectedDate = selectedDateStr;
             
-            // Show notification if date was auto-advanced
             if (dateAutoAdvanced) {
                 showNotification('customerNotification', '📅 Date automatically set to next day after 7 PM', 'info');
             }
             
-            // Try to load your original logo
+            // Load logo
             await loadLogo();
             
-            // Load data from Firebase or localStorage
-            await loadFromStorage();
+            // Load initial data from localStorage first (for fast display)
+            loadFromLocalStorage();
             loadTimeSlots();
             updateDisplay();
+            
+            // Then setup real-time listeners (this will update with latest data)
+            if (firebaseInitialized) {
+                setupRealtimeListeners();
+            }
+            
+            console.log('✅ App initialized!');
         };
         
         // Smart logo loading
@@ -776,10 +925,7 @@ const possibleImages = [
                 'logo.jpg.jpg', 
                 'logo.jpg', 
                 'logo.jpeg', 
-                'logo.png', 
-                'ride-bookcut-logo.jpg', 
-                'ride-bookcut-logo.png',
-                'https://ridebookcut.github.io/booking-system/logo.jpg.jpg'
+                'logo.png'
             ];
             
             for (const filename of possibleNames) {
@@ -787,7 +933,6 @@ const possibleImages = [
                     await new Promise((resolve, reject) => {
                         const testImg = new Image();
                         testImg.onload = () => {
-                            console.log('✅ Your original logo loaded:', filename);
                             logoImage.src = filename;
                             logoImage.style.display = 'block';
                             logoFallback.style.display = 'none';
@@ -802,113 +947,120 @@ const possibleImages = [
                 }
             }
             
-            console.log('📋 Logo will display when hosted online');
             logoFallback.style.display = 'block';
         }
         
-        // Load from Firebase or localStorage
-        async function loadFromStorage() {
-            if (firebaseInitialized) {
-                try {
-                    // Load bookings from Firebase
-                    const bookingsSnapshot = await db.collection('bookings').get();
-                    bookingsData = {};
-                    bookingsSnapshot.forEach(doc => {
-                        const data = doc.data();
-                        if (!bookingsData[data.date]) {
-                            bookingsData[data.date] = {};
-                        }
-                        bookingsData[data.date][data.time] = data;
-                    });
-                    
-                    // Load days off from Firebase
-                    const daysOffSnapshot = await db.collection('daysOff').get();
-                    daysOffData = [];
-                    daysOffSnapshot.forEach(doc => {
-                        daysOffData.push(doc.id);
-                    });
-                    
-                    console.log('✅ Data loaded from Firebase');
-                } catch (error) {
-                    console.error('❌ Firebase load error, falling back to localStorage:', error);
-                    loadFromLocalStorage();
-                }
-            } else {
-                loadFromLocalStorage();
-            }
-        }
-        
-        // Fallback to localStorage
+        // Load from localStorage (backup/fallback)
         function loadFromLocalStorage() {
             const stored = localStorage.getItem(STORAGE_KEY);
             if (stored) {
-                bookingsData = JSON.parse(stored);
+                try {
+                    bookingsData = JSON.parse(stored);
+                } catch (e) {
+                    bookingsData = {};
+                }
             }
             
             const storedDaysOff = localStorage.getItem(STORAGE_KEY + '_daysoff');
             if (storedDaysOff) {
-                daysOffData = JSON.parse(storedDaysOff);
-            }
-        }
-        
-        // Save to Firebase or localStorage
-        async function saveToStorage() {
-            if (firebaseInitialized) {
                 try {
-                    // Save bookings to Firebase
-                    const batch = db.batch();
-                    
-                    // Clear existing bookings
-                    const existingBookings = await db.collection('bookings').get();
-                    existingBookings.forEach(doc => {
-                        batch.delete(doc.ref);
-                    });
-                    
-                    // Add current bookings
-                    Object.keys(bookingsData).forEach(date => {
-                        Object.keys(bookingsData[date]).forEach(time => {
-                            const booking = bookingsData[date][time];
-                            const docRef = db.collection('bookings').doc(`${date}_${time}`);
-                            batch.set(docRef, booking);
-                        });
-                    });
-                    
-                    // Clear existing days off
-                    const existingDaysOff = await db.collection('daysOff').get();
-                    existingDaysOff.forEach(doc => {
-                        batch.delete(doc.ref);
-                    });
-                    
-                    // Add current days off
-                    daysOffData.forEach(date => {
-                        const docRef = db.collection('daysOff').doc(date);
-                        batch.set(docRef, { date: date });
-                    });
-                    
-                    await batch.commit();
-                    console.log('✅ Data saved to Firebase');
-                } catch (error) {
-                    console.error('❌ Firebase save error:', error);
-                    saveToLocalStorage();
+                    daysOffData = JSON.parse(storedDaysOff);
+                } catch (e) {
+                    daysOffData = [];
                 }
-            } else {
-                saveToLocalStorage();
             }
-            
-            updateDisplay();
         }
         
-        // Fallback to localStorage
+        // Save to localStorage (backup)
         function saveToLocalStorage() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(bookingsData));
             localStorage.setItem(STORAGE_KEY + '_daysoff', JSON.stringify(daysOffData));
+        }
+        
+        // ============================================
+        // SAVE TO FIREBASE - IMPROVED VERSION
+        // ============================================
+        async function saveBookingToFirebase(booking) {
+            if (!firebaseInitialized) {
+                console.log('⚠️ Firebase not initialized, saving to localStorage only');
+                saveToLocalStorage();
+                return false;
+            }
+            
+            try {
+                const docId = `${booking.date}_${booking.time}`;
+                await db.collection('bookings').doc(docId).set(booking);
+                console.log('✅ Booking saved to Firebase:', docId);
+                return true;
+            } catch (error) {
+                console.error('❌ Firebase save error:', error);
+                saveToLocalStorage();
+                return false;
+            }
+        }
+        
+        async function deleteBookingFromFirebase(date, time) {
+            if (!firebaseInitialized) return false;
+            
+            try {
+                const docId = `${date}_${time}`;
+                await db.collection('bookings').doc(docId).delete();
+                console.log('✅ Booking deleted from Firebase:', docId);
+                return true;
+            } catch (error) {
+                console.error('❌ Firebase delete error:', error);
+                return false;
+            }
+        }
+        
+        async function updateBookingInFirebase(booking) {
+            if (!firebaseInitialized) {
+                saveToLocalStorage();
+                return false;
+            }
+            
+            try {
+                const docId = `${booking.date}_${booking.time}`;
+                await db.collection('bookings').doc(docId).update(booking);
+                console.log('✅ Booking updated in Firebase:', docId);
+                return true;
+            } catch (error) {
+                console.error('❌ Firebase update error:', error);
+                // Try set instead of update
+                return await saveBookingToFirebase(booking);
+            }
+        }
+        
+        async function saveDayOffToFirebase(date) {
+            if (!firebaseInitialized) return false;
+            
+            try {
+                await db.collection('daysOff').doc(date).set({ date: date });
+                console.log('✅ Day off saved to Firebase:', date);
+                return true;
+            } catch (error) {
+                console.error('❌ Firebase day off save error:', error);
+                return false;
+            }
+        }
+        
+        async function deleteDayOffFromFirebase(date) {
+            if (!firebaseInitialized) return false;
+            
+            try {
+                await db.collection('daysOff').doc(date).delete();
+                console.log('✅ Day off deleted from Firebase:', date);
+                return true;
+            } catch (error) {
+                console.error('❌ Firebase day off delete error:', error);
+                return false;
+            }
         }
         
         // Update display counters
         function updateDisplay() {
             const storedDatesElement = document.getElementById('storedDates');
             const statusElement = document.getElementById('dbStatus');
-            const timeElement = document.getElementById('lastSyncTime');
             
             if (storedDatesElement) {
                 storedDatesElement.textContent = Object.keys(bookingsData).length;
@@ -917,15 +1069,6 @@ const possibleImages = [
             if (statusElement) {
                 statusElement.textContent = firebaseInitialized ? 'Firebase Connected' : 'Using localStorage';
                 statusElement.style.color = firebaseInitialized ? '#27ae60' : '#f39c12';
-            }
-            
-            if (timeElement) {
-                timeElement.textContent = new Date().toLocaleTimeString();
-            }
-            
-            // Refresh admin panel if user is logged in
-            if (isAdminLoggedIn) {
-                loadAdminBookings();
             }
         }
         
@@ -990,12 +1133,19 @@ const possibleImages = [
                         isPast = slotTime < now;
                     }
                     
-                    // Always make future slots clickable
+                    // Also check if date is in the past
+                    if (selectedDate < today) {
+                        isPast = true;
+                    }
+                    
                     if (!isPast) {
                         slot.style.cursor = 'pointer';
-                        slot.onclick = () => selectTimeSlot(time, slot);
+                        slot.onclick = function() {
+                            selectTimeSlot(time, this);
+                        };
                     } else {
                         slot.style.opacity = '0.5';
+                        slot.style.cursor = 'not-allowed';
                     }
                 }
                 
@@ -1012,15 +1162,14 @@ const possibleImages = [
         }
         
         // Submit booking - WITH POPUP
-        function submitBooking() {
-            console.log('📝 Submitting booking...'); // Debug log
+        async function submitBooking() {
+            console.log('📝 Submitting booking...');
             const name = document.getElementById('customerName').value.trim();
             const phone = document.getElementById('customerPhone').value.trim();
             const service = document.getElementById('serviceRequest').value.trim();
             
             if (!name || !phone || !service || !selectedTime) {
                 alert('⚠️ Please fill in all fields and select a time slot.');
-                console.log('❌ Form incomplete'); // Debug log
                 return;
             }
             
@@ -1040,32 +1189,37 @@ const possibleImages = [
                 timestamp: new Date().toISOString()
             };
             
-            console.log('💾 Saving booking:', booking); // Debug log
+            console.log('💾 Saving booking:', booking);
             
+            // Update local data
             if (!bookingsData[selectedDate]) bookingsData[selectedDate] = {};
             bookingsData[selectedDate][selectedTime] = booking;
             
-            // Save to storage
-            saveToStorage().then(() => {
-                console.log('✅ Booking saved!'); // Debug log
-                
-                // Clear form
-                document.getElementById('customerName').value = '';
-                document.getElementById('customerPhone').value = '';
-                document.getElementById('serviceRequest').value = '';
-                document.getElementById('bookingForm').classList.add('hidden');
-                
-                // Refresh display
-                loadTimeSlots();
-                
-                // SHOW POPUP
-                setTimeout(() => {
-                    showPopup(selectedDate, selectedTime, service);
-                }, 100);
-            }).catch(error => {
-                console.error('❌ Save error:', error);
-                alert('Error saving booking. Please try again.');
-            });
+            // Save to localStorage immediately
+            saveToLocalStorage();
+            
+            // Save to Firebase
+            const savedToFirebase = await saveBookingToFirebase(booking);
+            
+            if (!savedToFirebase) {
+                console.log('⚠️ Saved to localStorage only');
+            }
+            
+            console.log('✅ Booking saved!');
+            
+            // Clear form
+            document.getElementById('customerName').value = '';
+            document.getElementById('customerPhone').value = '';
+            document.getElementById('serviceRequest').value = '';
+            document.getElementById('bookingForm').classList.add('hidden');
+            
+            // Refresh display
+            loadTimeSlots();
+            
+            // SHOW POPUP
+            setTimeout(() => {
+                showPopup(selectedDate, selectedTime, service);
+            }, 100);
         }
         
         // Cancel booking (customer)
@@ -1192,8 +1346,8 @@ const possibleImages = [
                                         ✂️ ${booking.serviceRequest}
                                     </div>
                                     <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-                                        <button class="btn confirm" onclick="confirmBooking('${booking.id}')">✅ Confirm</button>
-                                        <button class="btn decline" onclick="declineBooking('${booking.id}')">❌ Decline</button>
+                                        <button class="btn confirm" onclick="confirmBooking('${booking.date}', '${booking.time}')">✅ Confirm</button>
+                                        <button class="btn decline" onclick="declineBooking('${booking.date}', '${booking.time}')">❌ Decline</button>
                                     </div>
                                 </div>
                             `;
@@ -1278,11 +1432,11 @@ const possibleImages = [
                                     </div>
                                     <div style="margin-top: 10px; display: flex; gap: 10px;">
                                         ${booking.status === 'pending' ? 
-                                            `<button class="btn confirm" onclick="confirmBooking('${booking.id}')">✅ Confirm</button>
-                                             <button class="btn decline" onclick="declineBooking('${booking.id}')" style="background: #e74c3c;">❌ Decline</button>` : 
+                                            `<button class="btn confirm" onclick="confirmBooking('${booking.date}', '${booking.time}')">✅ Confirm</button>
+                                             <button class="btn decline" onclick="declineBooking('${booking.date}', '${booking.time}')" style="background: #e74c3c;">❌ Decline</button>` : 
                                             ''}
                                         ${booking.status === 'confirmed' ? 
-                                            `<button class="btn decline" onclick="cancelConfirmedBooking('${booking.id}')" style="background: #e74c3c;">❌ Cancel Booking</button>` : 
+                                            `<button class="btn decline" onclick="cancelConfirmedBooking('${booking.date}', '${booking.time}')" style="background: #e74c3c;">❌ Cancel Booking</button>` : 
                                             ''}
                                     </div>
                                 </div>
@@ -1298,14 +1452,6 @@ const possibleImages = [
                     allContainer.innerHTML = allHTML;
                 }
             }
-            
-            const today = new Date().toISOString().split('T')[0];
-            setTimeout(() => {
-                const todayElement = document.getElementById(`all-date-${today}`);
-                if (todayElement) {
-                    todayElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            }, 500);
         }
         
         function updateBookingStats(pendingCount, confirmedCount, cancelledCount) {
@@ -1390,46 +1536,48 @@ const possibleImages = [
             }
         }
         
-        function confirmBooking(bookingId) {
-            updateBookingStatus(bookingId, 'confirmed');
-        }
-        
-        function declineBooking(bookingId) {
-            updateBookingStatus(bookingId, 'declined');
-        }
-        
-        function cancelConfirmedBooking(bookingId) {
-            if (confirm('⚠️ Are you sure you want to cancel this confirmed booking? This cannot be undone!')) {
-                updateBookingStatus(bookingId, 'cancelled');
+        async function confirmBooking(date, time) {
+            if (bookingsData[date] && bookingsData[date][time]) {
+                bookingsData[date][time].status = 'confirmed';
+                saveToLocalStorage();
+                await updateBookingInFirebase(bookingsData[date][time]);
+                loadAdminBookings();
+                loadTimeSlots();
+                showNotification('adminPanelNotification', '✅ Booking confirmed!', 'success');
             }
         }
         
-        function updateBookingStatus(bookingId, newStatus) {
-            Object.keys(bookingsData).forEach(date => {
-                if (bookingsData[date]) {
-                    Object.keys(bookingsData[date]).forEach(time => {
-                        if (bookingsData[date][time] && bookingsData[date][time].id === bookingId) {
-                            if (newStatus === 'declined' || newStatus === 'cancelled') {
-                                delete bookingsData[date][time];
-                            } else {
-                                bookingsData[date][time].status = newStatus;
-                            }
-                            
-                            saveToStorage();
-                            loadAdminBookings();
-                            loadTimeSlots();
-                            
-                            showNotification('adminPanelNotification', 
-                                `✅ Booking ${newStatus === 'confirmed' ? 'confirmed' : newStatus === 'cancelled' ? 'cancelled' : 'declined'}!`, 
-                                'success');
-                            return;
-                        }
-                    });
+        async function declineBooking(date, time) {
+            if (bookingsData[date] && bookingsData[date][time]) {
+                delete bookingsData[date][time];
+                if (Object.keys(bookingsData[date]).length === 0) {
+                    delete bookingsData[date];
                 }
-            });
+                saveToLocalStorage();
+                await deleteBookingFromFirebase(date, time);
+                loadAdminBookings();
+                loadTimeSlots();
+                showNotification('adminPanelNotification', '❌ Booking declined!', 'success');
+            }
         }
         
-        function toggleDayOff() {
+        async function cancelConfirmedBooking(date, time) {
+            if (confirm('⚠️ Are you sure you want to cancel this confirmed booking?')) {
+                if (bookingsData[date] && bookingsData[date][time]) {
+                    delete bookingsData[date][time];
+                    if (Object.keys(bookingsData[date]).length === 0) {
+                        delete bookingsData[date];
+                    }
+                    saveToLocalStorage();
+                    await deleteBookingFromFirebase(date, time);
+                    loadAdminBookings();
+                    loadTimeSlots();
+                    showNotification('adminPanelNotification', '❌ Booking cancelled!', 'success');
+                }
+            }
+        }
+        
+        async function toggleDayOff() {
             const dateInput = document.getElementById('dayOffDate');
             const selectedDayOff = dateInput.value;
             
@@ -1443,16 +1591,23 @@ const possibleImages = [
             if (dateIndex === -1) {
                 daysOffData.push(selectedDayOff);
                 
+                // Delete any bookings for this day
                 if (bookingsData[selectedDayOff]) {
+                    const times = Object.keys(bookingsData[selectedDayOff]);
+                    for (const time of times) {
+                        await deleteBookingFromFirebase(selectedDayOff, time);
+                    }
                     delete bookingsData[selectedDayOff];
                 }
                 
-                saveToStorage();
-                showNotification('dayOffNotification', '🚫 Day marked as OFF! No bookings will be accepted.', 'success');
+                await saveDayOffToFirebase(selectedDayOff);
+                saveToLocalStorage();
+                showNotification('dayOffNotification', '🚫 Day marked as OFF!', 'success');
             } else {
                 daysOffData.splice(dateIndex, 1);
-                saveToStorage();
-                showNotification('dayOffNotification', '✅ Day off removed! Bookings are now available.', 'success');
+                await deleteDayOffFromFirebase(selectedDayOff);
+                saveToLocalStorage();
+                showNotification('dayOffNotification', '✅ Day off removed!', 'success');
             }
             
             dateInput.value = '';
@@ -1490,11 +1645,12 @@ const possibleImages = [
                 }).join('');
         }
         
-        function removeDayOff(date) {
+        async function removeDayOff(date) {
             const index = daysOffData.indexOf(date);
             if (index > -1) {
                 daysOffData.splice(index, 1);
-                saveToStorage();
+                await deleteDayOffFromFirebase(date);
+                saveToLocalStorage();
                 showNotification('dayOffNotification', '✅ Day off removed!', 'success');
                 loadDayOffList();
                 loadTimeSlots();
@@ -1502,54 +1658,62 @@ const possibleImages = [
         }
         
         function testConnection() {
-            if (firebaseInitialized) {
-                showNotification('sheetsNotification', '✅ Firebase connection successful! Real-time sync enabled.', 'success');
+            if (firebaseInitialized && realtimeListenersActive) {
+                showNotification('sheetsNotification', '✅ Firebase connected! Real-time sync is ACTIVE.', 'success');
+            } else if (firebaseInitialized) {
+                showNotification('sheetsNotification', '⚠️ Firebase connected but listeners not active. Refreshing...', 'info');
+                setupRealtimeListeners();
             } else {
-                showNotification('sheetsNotification', '⚠️ Firebase not configured. Using localStorage instead.', 'info');
+                showNotification('sheetsNotification', '⚠️ Firebase not configured. Using localStorage.', 'info');
             }
         }
         
         function manualSync() {
-            loadFromStorage();
-            loadTimeSlots();
-            if (isAdminLoggedIn) {
-                loadAdminBookings();
-                loadDayOffList();
+            if (firebaseInitialized) {
+                // The real-time listeners will automatically sync
+                showSyncIndicator();
+                showNotification('sheetsNotification', '✅ Sync triggered! Data will update automatically.', 'success');
+            } else {
+                loadFromLocalStorage();
+                loadTimeSlots();
+                if (isAdminLoggedIn) {
+                    loadAdminBookings();
+                    loadDayOffList();
+                }
+                updateDisplay();
+                showNotification('sheetsNotification', '✅ Local data reloaded!', 'success');
             }
-            updateDisplay();
-            showNotification('sheetsNotification', '✅ Manual sync completed!', 'success');
         }
         
-        function clearLocalData() {
+        async function clearLocalData() {
             if (confirm('⚠️ Are you sure you want to clear ALL booking data? This cannot be undone!')) {
                 bookingsData = {};
                 daysOffData = [];
                 
+                // Clear localStorage
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(STORAGE_KEY + '_daysoff');
+                
+                // Clear Firebase
                 if (firebaseInitialized) {
-                    db.collection('bookings').get().then(snapshot => {
-                        const batch = db.batch();
-                        snapshot.forEach(doc => {
-                            batch.delete(doc.ref);
-                        });
-                        return batch.commit();
-                    }).then(() => {
-                        return db.collection('daysOff').get();
-                    }).then(snapshot => {
-                        const batch = db.batch();
-                        snapshot.forEach(doc => {
-                            batch.delete(doc.ref);
-                        });
-                        return batch.commit();
-                    }).then(() => {
-                        showNotification('sheetsNotification', '✅ All Firebase data cleared successfully!', 'success');
-                    }).catch(error => {
-                        console.error('Error clearing Firebase data:', error);
-                        showNotification('sheetsNotification', '❌ Error clearing Firebase data.', 'error');
-                    });
+                    try {
+                        const bookingsSnapshot = await db.collection('bookings').get();
+                        const batch1 = db.batch();
+                        bookingsSnapshot.forEach(doc => batch1.delete(doc.ref));
+                        await batch1.commit();
+                        
+                        const daysOffSnapshot = await db.collection('daysOff').get();
+                        const batch2 = db.batch();
+                        daysOffSnapshot.forEach(doc => batch2.delete(doc.ref));
+                        await batch2.commit();
+                        
+                        showNotification('sheetsNotification', '✅ All data cleared!', 'success');
+                    } catch (error) {
+                        console.error('Error clearing Firebase:', error);
+                        showNotification('sheetsNotification', '⚠️ Error clearing Firebase data.', 'error');
+                    }
                 } else {
-                    localStorage.removeItem(STORAGE_KEY);
-                    localStorage.removeItem(STORAGE_KEY + '_daysoff');
-                    showNotification('sheetsNotification', '✅ Local data cleared successfully!', 'success');
+                    showNotification('sheetsNotification', '✅ Local data cleared!', 'success');
                 }
                 
                 loadTimeSlots();
@@ -1561,6 +1725,7 @@ const possibleImages = [
             }
         }
         
+        // Search functionality
         document.addEventListener('DOMContentLoaded', function() {
             const pendingSearch = document.getElementById('pendingSearch');
             const allBookingsSearch = document.getElementById('allBookingsSearch');
