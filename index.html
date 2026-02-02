@@ -462,11 +462,11 @@
     <!-- POPUP MODAL -->
     <div id="bookingPopup" class="popup-overlay" onclick="if(event.target === this) closePopup()">
         <div class="popup-content">
-            <img id="popupImage" class="popup-image" src="payment-qr.jpg.png" alt="Payment QR" style="display: none;">
+            <img id="popupImage" class="popup-image" src="payment-qr.jpg" alt="Payment QR" style="display: none;">
             <div class="popup-image-fallback" id="popupImageFallback">✅</div>
             
             <div class="popup-message">
-                🎉 Vui lòng thanh toán trước và chụp màng hình lại gửi qua IG: rideboookcut để confirm - Cái giá phải trả: 150.000vnd - Thank youuu 🎉
+                🎉 Thank You for Booking with Ride Bookcut! 🎉
             </div>
             
             <div class="popup-details">
@@ -478,6 +478,7 @@
             <p style="color: #334024; margin-bottom: 20px; font-size: 0.8em;">
                 Your booking is <strong style="color: #f39c12;">PENDING</strong>.<br>
                 We'll confirm your appointment soon!
+            </p> confirm your appointment soon!
             </p>
             
             <button class="popup-close-btn" onclick="closePopup()">Got It!</button>
@@ -674,12 +675,12 @@
             const popupImageFallback = document.getElementById('popupImageFallback');
             
             const possibleImages = [
-                'payment-qr.jpg.png',
-                'payment-qr.jpg.png',
+                'payment-qr.jpg',
+                'payment-qr.png',
                 'logo.jpg.jpg',
                 'logo.jpg',
                 'thank-you.jpg',
-                'https://ridebookcut.github.io/booking-system/payment-qr.jpg.png'
+                'https://ridebookcut.github.io/booking-system/payment-qr.jpg'
             ];
             
             let imageLoaded = false;
@@ -733,7 +734,7 @@
             
             const selectedDateStr = selectedDateObj.toISOString().split('T')[0];
             document.getElementById('selectedDate').value = selectedDateStr;
-            document.getElementById('selectedDate').min = new Date().toISOString().split('T')[0];
+            // Allow viewing past dates - no minimum date restriction
             selectedDate = selectedDateStr;
             
             // Show notification if date was auto-advanced
@@ -914,6 +915,9 @@
         // Generate time slots
         function generateTimeSlots() {
             const slots = [];
+            // Start at 8:30 AM
+            slots.push('08:30');
+            // Then continue from 9:00 AM to 6:30 PM
             for (let hour = 9; hour < 19; hour++) {
                 for (let minute = 0; minute < 60; minute += 30) {
                     slots.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
