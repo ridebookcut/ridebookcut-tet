@@ -1073,18 +1073,20 @@
         }
         
         // Generate time slots
-        function generateTimeSlots() {
-            const slots = [];
-            // Start at 8:30 AM
-            slots.push('08:30');
-            // Then continue from 9:00 AM to 6:30 PM
-            for (let hour = 9; hour < 19; hour++) {
-                for (let minute = 0; minute < 60; minute += 30) {
-                    slots.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
-                }
-            }
-            return slots;
+       function generateTimeSlots() {
+    const slots = [];
+    // Start at 8:30 AM
+    slots.push('08:30');
+    // Then continue from 9:00 AM to 7:00 PM (19:00)
+    for (let hour = 9; hour <= 19; hour++) {
+        for (let minute = 0; minute < 60; minute += 30) {
+            // Stop at 19:00, don't include 19:30
+            if (hour === 19 && minute === 30) break;
+            slots.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
         }
+    }
+    return slots;
+}
         
         // Load and display time slots
         function loadTimeSlots() {
